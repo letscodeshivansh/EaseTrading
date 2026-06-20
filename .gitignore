@@ -1,0 +1,23 @@
+# Secrets — never commit real credentials
+.env
+*.env.local
+
+# Java / Spring Boot
+apps/api/target/
+*.class
+
+# Node / Next.js
+node_modules/
+apps/web/.next/
+apps/web/out/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+apps/analysis/.venv/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store

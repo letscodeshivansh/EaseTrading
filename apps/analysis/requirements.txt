@@ -1,0 +1,21 @@
+# Base dependencies — everything the service needs to run in its default mode
+# (mock data + grounded analyst). These install cleanly with no version conflicts.
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+pydantic==2.7.4
+
+# Quant engine + fundamentals
+pandas==2.2.2
+numpy==1.26.4
+yfinance==0.2.40
+requests==2.32.3
+
+# Testing
+pytest==8.2.2
+
+# ---------------------------------------------------------------------------
+# OPTIONAL — only needed to connect LIVE Claude via the Agent SDK + MCP server.
+# These are kept out of the default install because (a) they aren't needed for
+# mock/grounded mode, and (b) they have stricter version requirements.
+# To enable live Claude:  pip install -r requirements-ai.txt
+# ---------------------------------------------------------------------------

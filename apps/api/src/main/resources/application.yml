@@ -1,0 +1,60 @@
+# ==========================================================================
+# Spring Boot configuration. Values come from environment variables (set by
+# docker-compose / .env) with sensible local defaults after the ":".
+# ==========================================================================
+spring:
+  application:
+    name: easetrading-api
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/easetrading}
+    username: ${POSTGRES_USER:easetrading}
+    password: ${POSTGRES_PASSWORD:easetrading}
+
+  jpa:
+    hibernate:
+      # "update" auto-creates/updates tables from our @Entity classes — convenient
+      # for development. In production we would switch to versioned migrations (Flyway).
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+
+server:
+  port: 8080
+
+# ---- Application-specific settings ----
+easetrading:
+  security:
+    # Secret used to sign JWTs and the AES key used to encrypt broker credentials.
+    jwt-secret: ${JWT_SECRET:dev-only-secret-change-me-please-32-bytes-min}
+    jwt-expiry-minutes: 120
+    credential-aes-key: ${CREDENTIAL_AES_KEY:}
+  market:
+    # "mock" (generated ticks) or "live" (real Angel One WebSocket).
+    feed-mode: ${MARKET_FEED_MODE:mock}
+  angelone:
+    api-key: ${ANGEL_ONE_API_KEY:}
+    client-id: ${ANGEL_ONE_CLIENT_ID:}
+    password: ${ANGEL_ONE_PASSWORD:}
+    totp-secret: ${ANGEL_ONE_TOTP_SECRET:}
+    base-url: https://apiconnect.angelone.in
+  analysis:
+    service-url: ${ANALYSIS_SERVICE_URL:http://localhost:8000}
+  trading:
+    # "paper" = simulated fills (safe default). "live" = real Angel One orders.
+    mode: ${TRADING_MODE:paper}
+  risk:
+    max-order-value: ${RISK_MAX_ORDER_VALUE:100000}
+    max-position-pct: ${RISK_MAX_POSITION_PCT:25}
+    daily-loss-limit: ${RISK_DAILY_LOSS_LIMIT:25000}
+    price-band-pct: ${RISK_PRICE_BAND_PCT:10}
+
+logging:
+  level:
+    com.easetrading: DEBUG
