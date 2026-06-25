@@ -11,6 +11,8 @@ RUN npm config set strict-ssl false
 COPY package.json ./
 RUN npm install
 COPY . .
+# Tell next.config to emit the standalone output (needed for this Docker image only).
+ENV BUILD_STANDALONE=true
 RUN npm run build
 
 # ---- Run stage: serve the optimized standalone build ----
