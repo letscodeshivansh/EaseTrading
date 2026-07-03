@@ -7,7 +7,10 @@ spring:
     name: easetrading-api
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/easetrading}
+    # Use DB_URL if given (local docker-compose). Otherwise build the JDBC URL from
+    # DB_HOST/DB_PORT/DB_NAME — this is how managed cloud databases (e.g. Render) are
+    # wired, since they expose host/port/name separately rather than a JDBC string.
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:easetrading}}
     username: ${POSTGRES_USER:easetrading}
     password: ${POSTGRES_PASSWORD:easetrading}
 
@@ -26,7 +29,9 @@ spring:
       url: ${REDIS_URL:redis://localhost:6379}
 
 server:
-  port: 8080
+  # Cloud hosts (Render, Railway, etc.) inject the port to listen on via $PORT.
+  # Locally it defaults to 8080.
+  port: ${PORT:8080}
 
 # ---- Application-specific settings ----
 easetrading:

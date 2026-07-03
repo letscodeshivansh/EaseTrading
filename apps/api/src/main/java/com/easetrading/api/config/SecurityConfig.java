@@ -32,6 +32,12 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
 
+    // Comma-separated list of allowed browser origins. Defaults cover local dev and
+    // any Vercel deployment; override with CORS_ALLOWED_ORIGINS in production.
+    @org.springframework.beans.factory.annotation.Value(
+            "${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://*.vercel.app}")
+    private String corsOrigins;
+
     public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
     }
@@ -69,11 +75,13 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** Allow the Next.js dev server (localhost:3000) to call this API. */
+    /** Allow the configured frontend origins (localhost + Vercel by default) to call this API. */
     @Bean
     public CorsConfigurationSource corsSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOrigins(List.of("http://localhost:3000"));
+        // Patterns (not exact origins) so wildcards like https://*.vercel.app work,
+        // which also covers Vercel's per-deployment preview URLs.
+        cfg.setAllowedOriginPatterns(List.of(corsOrigins.split(",")));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
         cfg.setAllowCredentials(true);
