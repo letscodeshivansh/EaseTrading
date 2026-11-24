@@ -21,3 +21,10 @@ apps/analysis/.venv/
 .idea/
 .vscode/
 .DS_Store
+apps/web/tsconfig.tsbuildinfo
+
+# Local SQLite database (your watchlist, alerts, paper trades)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

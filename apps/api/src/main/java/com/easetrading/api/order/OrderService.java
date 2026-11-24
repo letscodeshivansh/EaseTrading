@@ -4,7 +4,7 @@ import com.easetrading.api.audit.AuditService;
 import com.easetrading.api.common.ApiException;
 import com.easetrading.api.common.CurrentUserService;
 import com.easetrading.api.instrument.Instrument;
-import com.easetrading.api.instrument.InstrumentRepository;
+import com.easetrading.api.instrument.InstrumentStore;
 import com.easetrading.api.marketdata.QuoteCache;
 import com.easetrading.api.order.OrderEnums.Side;
 import com.easetrading.api.order.OrderEnums.Status;
@@ -36,14 +36,14 @@ public class OrderService {
     private final RiskEngine riskEngine;
     private final TradeExecutor executor;
     private final PositionRepository positions;
-    private final InstrumentRepository instruments;
+    private final InstrumentStore instruments;
     private final QuoteCache quoteCache;
     private final AuditService audit;
     private final CurrentUserService currentUser;
     private final ObjectMapper json = new ObjectMapper();
 
     public OrderService(OrderRepository orders, RiskEngine riskEngine, TradeExecutor executor,
-                        PositionRepository positions, InstrumentRepository instruments,
+                        PositionRepository positions, InstrumentStore instruments,
                         QuoteCache quoteCache, AuditService audit, CurrentUserService currentUser) {
         this.orders = orders;
         this.riskEngine = riskEngine;
@@ -61,7 +61,7 @@ public class OrderService {
     @Transactional
     public DraftResult createDraft(String token, Side side, Type type, int qty, double limitPrice) {
         UUID userId = currentUser.currentUserId();
-        Instrument inst = instruments.findById(token)
+        Instrument inst = instruments.get(token)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Unknown instrument: " + token));
 
         double ltp = latestPrice(token);

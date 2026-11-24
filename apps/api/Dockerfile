@@ -20,6 +20,9 @@ RUN mvn -q clean package -DskipTests
 # ---- Run stage: a small JRE image that just runs the jar ----
 FROM eclipse-temurin:21-jre
 WORKDIR /app
+# The SQLite database file lives here (mount a volume to keep it between runs).
+RUN mkdir -p /app/data
+ENV DB_PATH=/app/data/easetrading.db
 COPY --from=build /app/target/api-1.0.0.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

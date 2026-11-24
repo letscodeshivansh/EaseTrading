@@ -1,156 +1,138 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
+import Stat from "@/components/Stat";
 import Watchlist from "@/components/Watchlist";
-import CandleChart from "@/components/CandleChart";
-import IndicatorPanel from "@/components/IndicatorPanel";
-import AnalysisCard from "@/components/AnalysisCard";
 import { useLiveQuotes } from "@/hooks/useLiveQuotes";
-import { getIndicators, analyze } from "@/lib/api";
-import { STRATEGIES, type Instrument, type Indicators, type Verdict } from "@/lib/types";
+import { getDashboard } from "@/lib/api";
+import { inr, pct, signedInr, tone } from "@/lib/format";
+import type { Dashboard, HoldingView } from "@/lib/types";
 
 /**
- * Phase 2 dashboard: live chart + indicator overlays + an indicator read-out.
- * The default watchlist mirrors the symbols the backend seeds.
+ * Personal dashboard (home):
+ *   broker connection · funds · portfolio summary (invested, current, total & today's P&L)
+ *   · today's top movers in my holdings · my watchlist with live prices.
+ * Refreshes every 15 seconds; watchlist prices stream live.
  */
-const DEFAULT_WATCHLIST: Instrument[] = [
-  { token: "2885", symbol: "RELIANCE", name: "Reliance Industries", exchange: "NSE" },
-  { token: "11536", symbol: "TCS", name: "Tata Consultancy Services", exchange: "NSE" },
-  { token: "1333", symbol: "HDFCBANK", name: "HDFC Bank", exchange: "NSE" },
-];
+export default function DashboardPage() {
+  const [data, setData] = useState<Dashboard | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [watchTokens, setWatchTokens] = useState<string[]>([]);
+  const { quotes } = useLiveQuotes(watchTokens);
 
-export default function Dashboard() {
-  const { quotes } = useLiveQuotes();
-  const [selected, setSelected] = useState<string>("2885");
-  const [indicators, setIndicators] = useState<Indicators | null>(null);
-  const [showSMA, setShowSMA] = useState(true);
-  const [showFib, setShowFib] = useState(true);
-
-  // AI analysis state.
-  const [strategy, setStrategy] = useState<string>("BLACK_BOX");
-  const [verdict, setVerdict] = useState<Verdict | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
-
-  const selectedInstrument =
-    DEFAULT_WATCHLIST.find((i) => i.token === selected) ?? DEFAULT_WATCHLIST[0];
-  const livePrice = quotes[selected];
-
-  // Load indicators whenever the selected stock changes; clear any old verdict.
   useEffect(() => {
-    setIndicators(null);
-    setVerdict(null);
-    getIndicators(selected).then(setIndicators).catch(() => setIndicators(null));
-  }, [selected]);
+    const load = () => getDashboard().then((d) => { setData(d); setError(null); }).catch((e) => setError(e.message));
+    load();
+    const t = setInterval(load, 15_000);
+    return () => clearInterval(t);
+  }, []);
 
-  async function runAnalysis() {
-    setAnalyzing(true);
-    try {
-      setVerdict(await analyze(selected, strategy));
-    } catch {
-      setVerdict(null);
-    } finally {
-      setAnalyzing(false);
-    }
-  }
+  const s = data?.summary;
+  const priced = !!s && s.pricedHoldings > 0;
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex min-h-screen flex-col">
       <Header />
+      <main className="mx-auto grid w-full max-w-7xl flex-1 gap-4 p-4 lg:grid-cols-[1fr_320px]">
+        <div className="flex min-w-0 flex-col gap-4">
+          {/* Connection */}
+          <ConnectionBanner data={data} error={error} />
 
-      <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
-        <aside className="max-h-44 overflow-y-auto border-b border-slate-800 md:max-h-none md:w-64 md:border-b-0 md:border-r">
-          <Watchlist
-            instruments={DEFAULT_WATCHLIST}
-            quotes={quotes}
-            selected={selected}
-            onSelect={setSelected}
-          />
+          {/* Portfolio summary */}
+          <section>
+            <div className="mb-2 flex items-baseline justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">My portfolio</h2>
+              <Link href="/portfolio" className="text-xs text-brand-light hover:underline">View holdings →</Link>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <Stat label="Current value" value={inr(s?.marketValue)} sub={s ? `${s.holdings} holdings` : undefined} />
+              <Stat label="Invested" value={inr(s?.invested)} />
+              {/* P&L needs live prices; with none (e.g. Groww free plan) show "—", never ₹0. */}
+              <Stat label="Total P&L" value={priced ? signedInr(s?.totalPnl) : "—"} valueClass={priced ? tone(s?.totalPnl) : "text-slate-400"}
+                    sub={priced ? pct(s?.totalPnlPct) : "needs live prices"} subClass={priced ? tone(s?.totalPnl) : "text-slate-500"} />
+              <Stat label="Today's P&L" value={priced ? signedInr(s?.dayPnl) : "—"} valueClass={priced ? tone(s?.dayPnl) : "text-slate-400"}
+                    sub={priced ? pct(s?.dayPnlPct) : "needs live prices"} subClass={priced ? tone(s?.dayPnl) : "text-slate-500"} />
+            </div>
+          </section>
+
+          {/* Funds */}
+          <section>
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">Funds</h2>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <Stat label="Available cash" value={inr(data?.funds?.availableCash)} />
+              <Stat label="Available for delivery" value={inr(data?.funds?.cncAvailable)} />
+              <Stat label="Margin used" value={inr(data?.funds?.marginUsed)} />
+              <Stat label="Charges today" value={inr(data?.funds?.brokerageAndCharges)} />
+            </div>
+          </section>
+
+          {/* Movers */}
+          <section className="grid gap-3 md:grid-cols-2">
+            <Movers title="Top gainers today" rows={data?.topGainers ?? []} />
+            <Movers title="Top losers today" rows={data?.topLosers ?? []} />
+          </section>
+
+          {data?.errors?.length ? (
+            <ul className="rounded border border-down/40 bg-down/10 p-3 text-xs text-down">
+              {data.errors.map((e) => <li key={e}>{e}</li>)}
+            </ul>
+          ) : null}
+        </div>
+
+        {/* Watchlist */}
+        <aside>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">Watchlist</h2>
+          <Watchlist quotes={quotes} onTokensChange={setWatchTokens} />
         </aside>
-
-        <main className="flex flex-1 flex-col overflow-y-auto p-3">
-          {/* Symbol header + live price + overlay toggles. */}
-          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <h1 className="text-lg font-bold">{selectedInstrument.symbol}</h1>
-              <p className="text-xs text-slate-400">
-                {selectedInstrument.name} · {selectedInstrument.exchange}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Toggle label="SMA" on={showSMA} onChange={setShowSMA} />
-              <Toggle label="Fib" on={showFib} onChange={setShowFib} />
-              <div className="text-right">
-                <div className="tabular-nums text-2xl font-semibold">
-                  {livePrice != null ? `₹${livePrice.toFixed(2)}` : "—"}
-                </div>
-                <div className="text-xs text-slate-500">live</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Chart with overlays. */}
-          <div className="h-[55vh] overflow-hidden rounded-lg border border-slate-800 md:h-[60vh]">
-            <CandleChart
-              token={selected}
-              ltp={livePrice}
-              showSMA={showSMA}
-              showFib={showFib}
-              indicators={indicators}
-            />
-          </div>
-
-          {/* Indicator read-out below the chart. */}
-          <div className="mt-3 rounded-lg border border-slate-800">
-            <h2 className="border-b border-slate-800 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Technical Indicators
-            </h2>
-            <IndicatorPanel data={indicators} />
-          </div>
-
-          {/* AI analysis: strategy picker + verdict card. */}
-          <div className="mt-3 rounded-lg border border-slate-800">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-3 py-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                AI Analysis
-              </h2>
-              <div className="flex items-center gap-2">
-                <select
-                  value={strategy}
-                  onChange={(e) => setStrategy(e.target.value)}
-                  className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-200"
-                >
-                  {STRATEGIES.map((s) => (
-                    <option key={s.key} value={s.key}>{s.name}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={runAnalysis}
-                  disabled={analyzing}
-                  className="rounded bg-brand px-3 py-1 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
-                >
-                  {analyzing ? "Analyzing…" : "Analyze"}
-                </button>
-              </div>
-            </div>
-            <AnalysisCard verdict={verdict} loading={analyzing} />
-          </div>
-        </main>
-      </div>
+      </main>
     </div>
   );
 }
 
-/** A small on/off pill used for the overlay toggles. */
-function Toggle({ label, on, onChange }: { label: string; on: boolean; onChange: (v: boolean) => void }) {
+function ConnectionBanner({ data, error }: { data: Dashboard | null; error: string | null }) {
+  if (error) {
+    return (
+      <div className="rounded-lg border border-down/40 bg-down/10 p-3 text-sm text-down">
+        Can&apos;t reach the EaseTrading api — is it running? ({error})
+      </div>
+    );
+  }
+  if (!data) return <div className="rounded-lg border border-slate-800 p-3 text-sm text-slate-400">Loading…</div>;
+  const b = data.broker;
   return (
-    <button
-      onClick={() => onChange(!on)}
-      className={`rounded px-2 py-1 text-xs font-medium transition ${
-        on ? "bg-brand/30 text-brand" : "bg-slate-800 text-slate-400"
-      }`}
-    >
-      {label}
-    </button>
+    <div className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm ${
+      b.connected ? "border-slate-800" : "border-amber-600/50 bg-amber-500/10"}`}>
+      <div className="flex items-center gap-2">
+        <span className={`h-2 w-2 rounded-full ${b.connected ? "bg-up" : "bg-amber-500"}`} />
+        <span className="font-medium">{b.provider === "GROWW" ? "Groww" : "Demo broker"}</span>
+        <span className="text-slate-400">{b.message}</span>
+      </div>
+      {b.tokenExpiresAt && (
+        <span className="text-xs text-slate-500">
+          session until {new Date(b.tokenExpiresAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function Movers({ title, rows }: { title: string; rows: HoldingView[] }) {
+  return (
+    <div className="rounded-lg border border-slate-800">
+      <h3 className="border-b border-slate-800 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</h3>
+      <ul>
+        {rows.map((h) => (
+          <li key={h.symbol} className="flex items-center justify-between px-3 py-2 text-sm">
+            {h.token ? <Link href={`/stocks/${h.token}`} className="font-medium hover:text-brand-light">{h.symbol}</Link>
+                     : <span className="font-medium">{h.symbol}</span>}
+            <span className="tabular-nums text-slate-300">{inr(h.ltp)}</span>
+            <span className={`w-20 text-right tabular-nums ${tone(h.dayChangePct)}`}>{pct(h.dayChangePct)}</span>
+          </li>
+        ))}
+        {rows.length === 0 && <li className="px-3 py-4 text-center text-xs text-slate-500">Nothing here yet.</li>}
+      </ul>
+    </div>
   );
 }

@@ -1,29 +1,16 @@
 package com.easetrading.api.fundamental;
 
-import jakarta.persistence.*;
-
 import java.time.LocalDate;
-import java.util.UUID;
 
 /**
- * Stored fundamentals snapshot for one instrument on one date. Because fundamentals
- * change slowly (quarterly filings, daily ratios), we cache them here and refresh on
- * a schedule instead of hitting Yahoo/NSE on every page view.
+ * Fundamentals snapshot for one stock on one date (P/E, ROE, EPS, growth, holdings).
+ * Fundamentals change slowly, so FundamentalService keeps today's snapshot in a
+ * small in-memory cache instead of hitting Yahoo/NSE on every page view.
  */
-@Entity
-@Table(name = "fundamental", uniqueConstraints =
-        @UniqueConstraint(columnNames = {"token", "asOf"}))
 public class Fundamental {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
-
-    @Column(nullable = false)
-    private String token;
-
-    @Column(nullable = false)
-    private LocalDate asOf;
+    private final String token;
+    private final LocalDate asOf;
 
     private Double peRatio;
     private Double eps;
@@ -34,8 +21,6 @@ public class Fundamental {
     private Double promoterPct;
     private Double debtToEquity;
     private String source;
-
-    protected Fundamental() { }
 
     public Fundamental(String token, LocalDate asOf) {
         this.token = token;

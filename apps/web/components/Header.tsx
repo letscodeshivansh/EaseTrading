@@ -1,22 +1,87 @@
-import Link from "next/link";
+"use client";
 
-// Top bar with navigation. Server component (no interactivity needed).
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { getMode } from "@/lib/api";
+import type { Mode } from "@/lib/types";
+
+const NAV = [
+  { href: "/", label: "Dashboard" },
+  { href: "/portfolio", label: "Portfolio" },
+  { href: "/stocks", label: "Stocks" },
+  { href: "/orders", label: "Orders" },
+  { href: "/screener", label: "Screener" },
+  { href: "/alerts", label: "Alerts" },
+];
+
+/**
+ * Sticky top bar: logo, pill navigation (scrolls sideways on phones) and the REAL
+ * data source + trading mode from the api.
+ */
 export default function Header() {
+  const path = usePathname();
+  const [mode, setMode] = useState<Mode | null>(null);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    getMode().then(setMode).catch(() => setMode(null)).finally(() => setChecked(true));
+  }, []);
+
   return (
-    <header className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-      <div className="flex items-center gap-4">
-        <span className="text-xl font-bold text-brand">EaseTrading</span>
-        <nav className="flex gap-3 text-sm text-slate-300">
-          <Link href="/" className="hover:text-brand">Dashboard</Link>
-          <Link href="/screener" className="hover:text-brand">Screener</Link>
-          <Link href="/portfolio" className="hover:text-brand">Portfolio</Link>
-          <Link href="/orders" className="hover:text-brand">Orders</Link>
-          <Link href="/alerts" className="hover:text-brand">Alerts</Link>
+    <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
+      <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
+        <Link href="/" className="flex shrink-0 items-center gap-2">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand to-violet-500 text-sm font-black text-white shadow-lg shadow-brand/30">
+            E
+          </span>
+          <span className="hidden text-lg font-semibold tracking-tight sm:inline">EaseTrading</span>
+        </Link>
+
+        <nav className="-mx-1 flex flex-1 gap-1 overflow-x-auto px-1 text-sm [scrollbar-width:none]">
+          {NAV.map((n) => {
+            const active = n.href === "/" ? path === "/" : path?.startsWith(n.href);
+            return (
+              <Link key={n.href} href={n.href}
+                className={`whitespace-nowrap rounded-lg px-3 py-1.5 transition ${
+                  active ? "bg-brand/15 font-medium text-brand-light"
+                         : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"}`}>
+                {n.label}
+              </Link>
+            );
+          })}
         </nav>
+
+        <div className="hidden shrink-0 items-center gap-2 text-xs md:flex">
+          {mode ? (
+            <>
+              <Badge tone={mode.provider === "GROWW" ? "brand" : "neutral"}>
+                {mode.provider === "GROWW" ? "Groww" : "Demo data"}
+              </Badge>
+              <Badge tone={mode.trading === "LIVE" ? "danger" : "neutral"}>
+                {mode.trading === "LIVE" ? "LIVE trading" : "Paper trading"}
+              </Badge>
+            </>
+          ) : checked ? (
+            <Badge tone="danger">API offline</Badge>
+          ) : null}
+        </div>
       </div>
-      <span className="rounded bg-brand-light/10 px-2 py-1 text-xs text-brand">
-        Paper trading
-      </span>
     </header>
+  );
+}
+
+function Badge({ tone, children }: { tone: "brand" | "neutral" | "danger"; children: React.ReactNode }) {
+  const styles = {
+    brand: "border-brand/30 bg-brand/10 text-brand-light",
+    neutral: "border-slate-700 bg-slate-900 text-slate-300",
+    danger: "border-down/30 bg-down/10 text-down",
+  }[tone];
+  const dot = { brand: "bg-brand-light", neutral: "bg-slate-500", danger: "bg-down" }[tone];
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium ${styles}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+      {children}
+    </span>
   );
 }

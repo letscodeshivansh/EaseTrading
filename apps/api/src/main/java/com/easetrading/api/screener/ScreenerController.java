@@ -2,7 +2,7 @@ package com.easetrading.api.screener;
 
 import com.easetrading.api.analysis.AnalysisClient;
 import com.easetrading.api.instrument.Instrument;
-import com.easetrading.api.instrument.InstrumentRepository;
+import com.easetrading.api.instrument.InstrumentStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,10 +21,10 @@ import java.util.Map;
 @RequestMapping("/api/screener")
 public class ScreenerController {
 
-    private final InstrumentRepository instruments;
+    private final InstrumentStore instruments;
     private final AnalysisClient analysis;
 
-    public ScreenerController(InstrumentRepository instruments, AnalysisClient analysis) {
+    public ScreenerController(InstrumentStore instruments, AnalysisClient analysis) {
         this.instruments = instruments;
         this.analysis = analysis;
     }
@@ -34,7 +34,7 @@ public class ScreenerController {
     @PostMapping("/run")
     public JsonNode run(@RequestBody(required = false) ScreenRequest body) {
         // Build the universe from the instrument master.
-        List<Map<String, String>> universe = instruments.findAll().stream()
+        List<Map<String, String>> universe = instruments.all().stream()
                 .map(this::toUniverseItem)
                 .toList();
 

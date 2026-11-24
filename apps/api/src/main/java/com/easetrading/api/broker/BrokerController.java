@@ -1,62 +1,42 @@
 package com.easetrading.api.broker;
 
-import com.easetrading.api.security.CryptoService;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
-import java.util.UUID;
+import com.easetrading.api.broker.BrokerModels.BrokerFunds;
+import com.easetrading.api.broker.BrokerModels.BrokerProfile;
+import com.easetrading.api.broker.BrokerModels.BrokerStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Endpoints to connect a user's Angel One account and check its status.
- * Credentials are encrypted before they ever touch the database.
+ * Broker account info (read-only).
+ *   GET /api/broker/status   -> connected? token expiry, what to do if not connected
+ *   GET /api/broker/profile  -> client code, enabled exchanges/segments
+ *   GET /api/broker/funds    -> available cash and margin
  *
- *   POST /api/broker/connect  -> store encrypted credentials
- *   GET  /api/broker/status   -> CONNECTED / DISCONNECTED
+ * Credentials are never accepted or returned over HTTP — they live only in .env.
  */
 @RestController
 @RequestMapping("/api/broker")
 public class BrokerController {
 
-    private final BrokerCredentialRepository repo;
-    private final CryptoService crypto;
+    private final BrokerAdapter broker;
 
-    public BrokerController(BrokerCredentialRepository repo, CryptoService crypto) {
-        this.repo = repo;
-        this.crypto = crypto;
-    }
-
-    public record ConnectRequest(
-            @NotBlank String apiKey,
-            @NotBlank String clientId,
-            @NotBlank String password,
-            @NotBlank String totpSecret) {}
-
-    @PostMapping("/connect")
-    public Map<String, String> connect(Authentication auth, @Valid @RequestBody ConnectRequest req) {
-        UUID userId = UUID.fromString(auth.getName()); // the JWT subject is the user id
-
-        // Encrypt every secret field individually before saving.
-        BrokerCredential cred = repo.findByUserId(userId).orElse(
-                new BrokerCredential(userId,
-                        crypto.encrypt(req.apiKey()),
-                        crypto.encrypt(req.clientId()),
-                        crypto.encrypt(req.password()),
-                        crypto.encrypt(req.totpSecret())));
-        cred.setStatus("DISCONNECTED"); // becomes CONNECTED after first successful login
-        repo.save(cred);
-
-        return Map.of("status", "saved");
+    public BrokerController(BrokerAdapter broker) {
+        this.broker = broker;
     }
 
     @GetMapping("/status")
-    public Map<String, String> status(Authentication auth) {
-        UUID userId = UUID.fromString(auth.getName());
-        String status = repo.findByUserId(userId)
-                .map(BrokerCredential::getStatus)
-                .orElse("DISCONNECTED");
-        return Map.of("status", status);
+    public BrokerStatus status() {
+        return broker.status();
+    }
+
+    @GetMapping("/profile")
+    public BrokerProfile profile() {
+        return broker.profile();
+    }
+
+    @GetMapping("/funds")
+    public BrokerFunds funds() {
+        return broker.funds();
     }
 }

@@ -5,7 +5,7 @@ import com.easetrading.api.order.OrderEnums.Status;
 /**
  * Abstraction over "how an order actually gets executed". Two implementations:
  *   - PaperTradeExecutor : simulates fills (safe default, for testing)
- *   - LiveTradeExecutor  : sends real orders to Angel One
+ *   - LiveTradeExecutor  : real orders via the broker (blocked until phase G5)
  * The active one is chosen by easetrading.trading.mode.
  */
 public interface TradeExecutor {

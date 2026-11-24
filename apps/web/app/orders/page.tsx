@@ -4,22 +4,17 @@ import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import OrderTicket from "@/components/OrderTicket";
 import { listOrders, cancelOrder } from "@/lib/api";
+import { useStockChoices } from "@/hooks/useStockChoices";
 import type { Order } from "@/lib/types";
-
-// Mirrors the seeded watchlist; in Prompt 4+ this comes from the user's watchlist API.
-const SYMBOLS = [
-  { token: "2885", symbol: "RELIANCE" },
-  { token: "11536", symbol: "TCS" },
-  { token: "1333", symbol: "HDFCBANK" },
-];
 
 const STATUS_COLOR: Record<string, string> = {
   FILLED: "text-up", REJECTED: "text-down", CANCELLED: "text-slate-500",
-  DRAFT: "text-slate-400", SUBMITTED: "text-brand", OPEN: "text-brand",
+  DRAFT: "text-slate-400", SUBMITTED: "text-brand-light", OPEN: "text-brand-light",
 };
 
 export default function OrdersPage() {
-  const [sel, setSel] = useState(SYMBOLS[0]);
+  // Stocks to choose from = my watchlist (+ the stock passed as ?token=… from a stock page).
+  const { choices: SYMBOLS, sel, setSel } = useStockChoices();
   const [orders, setOrders] = useState<Order[]>([]);
 
   function refresh() {
@@ -36,17 +31,18 @@ export default function OrdersPage() {
           <div className="mb-2">
             <label className="text-xs text-slate-400">Instrument</label>
             <select
-              value={sel.token}
-              onChange={(e) => setSel(SYMBOLS.find((s) => s.token === e.target.value)!)}
+              value={sel?.token ?? ""}
+              onChange={(e) => setSel(SYMBOLS.find((s) => s.token === e.target.value) ?? null)}
               className="mt-1 w-full rounded bg-slate-800 px-2 py-1 text-sm"
             >
               {SYMBOLS.map((s) => <option key={s.token} value={s.token}>{s.symbol}</option>)}
             </select>
           </div>
-          <OrderTicket token={sel.token} symbol={sel.symbol} onPlaced={refresh} />
+          {sel ? <OrderTicket token={sel.token} symbol={sel.symbol} onPlaced={refresh} />
+               : <p className="text-sm text-slate-500">Add stocks to your watchlist to trade them.</p>}
           <p className="mt-2 text-[11px] text-slate-500">
-            Paper-trading mode by default — orders are simulated. No real money moves until
-            you switch the backend to live mode.
+            Paper trading — orders are simulated against real prices. Real orders arrive in a
+            later phase, after the safety checks are in place.
           </p>
         </section>
 

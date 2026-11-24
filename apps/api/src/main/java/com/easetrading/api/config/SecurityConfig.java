@@ -66,7 +66,13 @@ public class SecurityConfig {
                     // permit list so they require authentication.
                     "/api/orders/**",
                     "/api/portfolio/**",
-                    "/api/alerts/**"
+                    "/api/alerts/**",
+                    // Read-only broker/dashboard/watchlist views. Same dev-user rule as
+                    // above: keep the api local-only until login is added (B6).
+                    "/api/broker/**",
+                    "/api/dashboard",
+                    "/api/dashboard/**",
+                    "/api/watchlist/**"
                 ).permitAll()
                 .anyRequest().authenticated())
             // Our JWT filter runs before Spring's username/password filter.

@@ -6,27 +6,22 @@ spring:
   application:
     name: easetrading-api
 
+  # The whole database is ONE SQLite file — nothing to install or run.
+  # It holds only what the app itself owns: watchlist, alerts, paper orders/positions,
+  # analysis history, audit log, users. Everything the broker owns is fetched live.
   datasource:
-    # Use DB_URL if given (local docker-compose). Otherwise build the JDBC URL from
-    # DB_HOST/DB_PORT/DB_NAME — this is how managed cloud databases (e.g. Render) are
-    # wired, since they expose host/port/name separately rather than a JDBC string.
-    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:easetrading}}
-    username: ${POSTGRES_USER:easetrading}
-    password: ${POSTGRES_PASSWORD:easetrading}
+    url: jdbc:sqlite:${DB_PATH:easetrading.db}
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      # SQLite allows one writer at a time; a single connection avoids "database is locked".
+      maximum-pool-size: 1
 
   jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
     hibernate:
-      # "update" auto-creates/updates tables from our @Entity classes — convenient
-      # for development. In production we would switch to versioned migrations (Flyway).
+      # "update" creates/updates tables from our @Entity classes.
       ddl-auto: update
-    properties:
-      hibernate:
-        format_sql: true
     open-in-view: false
-
-  data:
-    redis:
-      url: ${REDIS_URL:redis://localhost:6379}
 
 server:
   # Cloud hosts (Render, Railway, etc.) inject the port to listen on via $PORT.
@@ -36,23 +31,27 @@ server:
 # ---- Application-specific settings ----
 easetrading:
   security:
-    # Secret used to sign JWTs and the AES key used to encrypt broker credentials.
+    # Secret used to sign JWTs (app login).
     jwt-secret: ${JWT_SECRET:dev-only-secret-change-me-please-32-bytes-min}
     jwt-expiry-minutes: 120
-    credential-aes-key: ${CREDENTIAL_AES_KEY:}
-  market:
-    # "mock" (generated ticks) or "live" (real Angel One WebSocket).
-    feed-mode: ${MARKET_FEED_MODE:mock}
-  angelone:
-    api-key: ${ANGEL_ONE_API_KEY:}
-    client-id: ${ANGEL_ONE_CLIENT_ID:}
-    password: ${ANGEL_ONE_PASSWORD:}
-    totp-secret: ${ANGEL_ONE_TOTP_SECRET:}
-    base-url: https://apiconnect.angelone.in
+  broker:
+    # Where prices, the stock list and your portfolio come from:
+    #   "mock"  = simulated data, no credentials (default)
+    #   "groww" = the real Groww Trade API (needs GROWW_* below)
+    provider: ${BROKER_PROVIDER:mock}
+  groww:
+    base-url: https://api.groww.in
+    instruments-url: https://growwapi-assets.groww.in/instruments/instrument.csv
+    # token | approval | totp — see .env.example
+    auth-mode: ${GROWW_AUTH_MODE:approval}
+    access-token: ${GROWW_ACCESS_TOKEN:}
+    api-key: ${GROWW_API_KEY:}
+    api-secret: ${GROWW_API_SECRET:}
+    totp-secret: ${GROWW_TOTP_SECRET:}
   analysis:
     service-url: ${ANALYSIS_SERVICE_URL:http://localhost:8000}
   trading:
-    # "paper" = simulated fills (safe default). "live" = real Angel One orders.
+    # "paper" = simulated fills (safe default). "live" = real orders (blocked until phase G5).
     mode: ${TRADING_MODE:paper}
   risk:
     max-order-value: ${RISK_MAX_ORDER_VALUE:100000}

@@ -121,14 +121,16 @@ export interface RiskCheck { name: string; passed: boolean; detail: string }
 export interface RiskReport { passed: boolean; checks: RiskCheck[] }
 export interface DraftResult { order: Order; risk: RiskReport }
 
-export interface Holding {
+/** Holdings built from paper trades placed in this app (GET /api/portfolio/paper). */
+export interface PaperHolding {
   token: string; symbol: string; qty: number; avgPrice: number; ltp: number;
   invested: number; marketValue: number; pnl: number; pnlPct: number; allocationPct: number;
 }
-export interface PortfolioView {
-  holdings: Holding[];
+export interface RiskView { holdings: number; largestPositionPct: number; concentrationIndex: number; assessment: string }
+export interface PaperPortfolio {
+  holdings: PaperHolding[];
   invested: number; marketValue: number; totalPnl: number; totalPnlPct: number;
-  risk: { holdings: number; largestPositionPct: number; concentrationIndex: number; assessment: string };
+  risk: RiskView;
 }
 
 export interface Alert {
@@ -156,3 +158,102 @@ export const STRATEGIES: { key: string; name: string }[] = [
   { key: "RENAISSANCE", name: "Renaissance — Quant" },
   { key: "MCKINSEY", name: "McKinsey — Macro" },
 ];
+
+// ---- Broker (Groww / mock): dashboard, real portfolio, stocks, watchlist ----
+
+export interface Mode { provider: "MOCK" | "GROWW" | string; trading: "PAPER" | "LIVE" | string }
+
+export interface BrokerStatus {
+  provider: string;
+  connected: boolean;
+  tokenExpiresAt: string | null;
+  message: string;
+}
+
+export interface Funds {
+  availableCash: number;
+  marginUsed: number;
+  cncAvailable: number;
+  brokerageAndCharges: number;
+}
+
+/**
+ * One real holding with live numbers (GET /api/portfolio).
+ * priceAvailable=false: the broker sent no price (e.g. Groww free plan) — ltp, pnl and
+ * day fields are null and marketValue is AT COST. Never show a P&L for these.
+ */
+export interface HoldingView {
+  token: string | null; // null if the broker holds something not in our NSE stock list
+  symbol: string;
+  name: string;
+  qty: number;
+  avgPrice: number;
+  priceAvailable: boolean;
+  ltp: number | null;
+  prevClose: number | null;
+  invested: number;
+  marketValue: number;
+  pnl: number | null;
+  pnlPct: number | null;
+  dayChange: number | null;
+  dayChangePct: number | null;
+  allocationPct: number;
+}
+
+export interface PortfolioSummary {
+  holdings: number;
+  /** How many holdings have a live price; P&L totals cover only these. */
+  pricedHoldings: number;
+  invested: number;
+  marketValue: number;
+  totalPnl: number;
+  totalPnlPct: number;
+  dayPnl: number;
+  dayPnlPct: number;
+}
+
+export interface BrokerPortfolio {
+  source: string;
+  asOf: string;
+  summary: PortfolioSummary;
+  holdings: HoldingView[];
+  risk: RiskView;
+}
+
+export interface Dashboard {
+  mode: Mode;
+  broker: BrokerStatus;
+  funds: Funds | null;
+  summary: PortfolioSummary | null;
+  topGainers: HoldingView[];
+  topLosers: HoldingView[];
+  errors: string[];
+}
+
+export interface WatchRow { token: string; symbol: string; name: string; exchange: string; ltp: number }
+
+export interface Quote {
+  lastPrice: number;
+  dayChange: number | null;
+  dayChangePct: number | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  volume: number | null;
+  week52High: number | null;
+  week52Low: number | null;
+  marketCap: number | null;
+  upperCircuit: number | null;
+  lowerCircuit: number | null;
+  lastTradeTime: string | null;
+}
+
+export interface StockDetail {
+  instrument: Instrument;
+  isin: string | null;
+  lotSize: number | null;
+  tickSize: number | null;
+  quote: Quote | null;
+  quoteError: string | null;
+}

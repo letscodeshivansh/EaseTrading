@@ -1,6 +1,6 @@
 """Company fundamentals (P/E, ROE, EPS, profit growth, FII/DII holdings).
 
-Angel One's API does not provide these, so we source them separately and for FREE:
+The broker API (Groww) does not provide these, so we source them separately and for FREE:
   - Yahoo Finance (yfinance) : P/E, EPS, ROE, margins, profit growth
   - BSE / NSE filings        : per-company FII / DII / promoter holding %
 

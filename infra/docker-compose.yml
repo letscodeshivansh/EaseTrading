@@ -1,84 +1,57 @@
 # ==========================================================================
-# EaseTrading — local development stack.
-# Brings up everything with one command:  docker compose up --build
+# EaseTrading — local stack (optional; you can also run the apps directly).
+# From the infra/ folder:
+#   docker compose --env-file ../.env up --build
 #
-#   postgres  : relational store + TimescaleDB extension (time-series candles)
-#   redis     : hot quotes cache + pub/sub fan-out of live ticks
-#   api       : Spring Boot core backend
-#   analysis  : Python FastAPI (skeleton in Prompt 1)
+#   api       : Spring Boot backend — its database is ONE SQLite file kept in
+#               the "apidata" volume (no Postgres, no Redis)
+#   analysis  : Python FastAPI (indicators, screener, verdicts)
 #   web       : Next.js frontend
+#
+# Every port is bound to 127.0.0.1 only: with a real broker connected, your
+# portfolio must not be reachable from other machines on your network until
+# login is added (issue B6).
 # ==========================================================================
 services:
-  postgres:
-    # TimescaleDB image = PostgreSQL + the Timescale extension preinstalled.
-    image: timescale/timescaledb:latest-pg16
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   api:
     build: ../apps/api
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
     environment:
-      DB_URL: ${DB_URL}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      REDIS_URL: ${REDIS_URL}
+      DB_PATH: /app/data/easetrading.db
       JWT_SECRET: ${JWT_SECRET}
-      CREDENTIAL_AES_KEY: ${CREDENTIAL_AES_KEY}
-      MARKET_FEED_MODE: ${MARKET_FEED_MODE}
-      ANGEL_ONE_API_KEY: ${ANGEL_ONE_API_KEY}
-      ANGEL_ONE_CLIENT_ID: ${ANGEL_ONE_CLIENT_ID}
-      ANGEL_ONE_PASSWORD: ${ANGEL_ONE_PASSWORD}
-      ANGEL_ONE_TOTP_SECRET: ${ANGEL_ONE_TOTP_SECRET}
-      ANALYSIS_SERVICE_URL: ${ANALYSIS_SERVICE_URL}
-      TRADING_MODE: ${TRADING_MODE}
-      RISK_MAX_ORDER_VALUE: ${RISK_MAX_ORDER_VALUE}
-      RISK_MAX_POSITION_PCT: ${RISK_MAX_POSITION_PCT}
-      RISK_DAILY_LOSS_LIMIT: ${RISK_DAILY_LOSS_LIMIT}
-      RISK_PRICE_BAND_PCT: ${RISK_PRICE_BAND_PCT}
+      BROKER_PROVIDER: ${BROKER_PROVIDER:-mock}
+      GROWW_AUTH_MODE: ${GROWW_AUTH_MODE:-approval}
+      GROWW_API_KEY: ${GROWW_API_KEY:-}
+      GROWW_API_SECRET: ${GROWW_API_SECRET:-}
+      GROWW_TOTP_SECRET: ${GROWW_TOTP_SECRET:-}
+      GROWW_ACCESS_TOKEN: ${GROWW_ACCESS_TOKEN:-}
+      ANALYSIS_SERVICE_URL: http://analysis:8000
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      RISK_MAX_ORDER_VALUE: ${RISK_MAX_ORDER_VALUE:-100000}
+      RISK_MAX_POSITION_PCT: ${RISK_MAX_POSITION_PCT:-25}
+      RISK_DAILY_LOSS_LIMIT: ${RISK_DAILY_LOSS_LIMIT:-25000}
+      RISK_PRICE_BAND_PCT: ${RISK_PRICE_BAND_PCT:-10}
+    volumes:
+      - apidata:/app/data
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
 
   analysis:
     build: ../apps/analysis
     environment:
-      FUNDAMENTALS_MODE: ${FUNDAMENTALS_MODE}
+      FUNDAMENTALS_MODE: ${FUNDAMENTALS_MODE:-mock}
       API_BASE_URL: http://api:8080
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
   web:
     build: ../apps/web
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
-      NEXT_PUBLIC_WS_BASE_URL: ${NEXT_PUBLIC_WS_BASE_URL}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+      NEXT_PUBLIC_WS_BASE_URL: ${NEXT_PUBLIC_WS_BASE_URL:-ws://localhost:8080}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
 
 volumes:
-  pgdata:
+  apidata:

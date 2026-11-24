@@ -10,7 +10,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  *
  * This is the "system of record": it owns users, broker sessions, orders and
  * market-data ingestion. The frontend talks only to this service; this service
- * talks to Angel One, the analysis service, Postgres and Redis.
+ * talks to the broker (Groww), the analysis service, Postgres and Redis.
  *
  * - @EnableScheduling : lets us run periodic jobs (e.g. daily symbol-master sync).
  * - @EnableAsync      : lets the market-data ingester run on background threads.

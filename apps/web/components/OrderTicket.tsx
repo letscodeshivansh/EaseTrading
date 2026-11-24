@@ -67,7 +67,7 @@ export default function OrderTicket({
           <div className="flex gap-2">
             {(["MARKET", "LIMIT"] as const).map((t) => (
               <button key={t} onClick={() => setType(t)}
-                className={`flex-1 rounded px-2 py-1 text-xs ${type === t ? "bg-brand/30 text-brand" : "bg-slate-800 text-slate-400"}`}>{t}</button>
+                className={`flex-1 rounded px-2 py-1 text-xs ${type === t ? "bg-brand/30 text-brand-light" : "bg-slate-800 text-slate-400"}`}>{t}</button>
             ))}
           </div>
           <label className="block text-xs text-slate-400">

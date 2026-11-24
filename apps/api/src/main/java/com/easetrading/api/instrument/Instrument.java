@@ -1,39 +1,32 @@
 package com.easetrading.api.instrument;
 
-import jakarta.persistence.*;
-
 /**
- * The "symbol master": one row per tradable instrument on NSE/BSE.
- * Angel One identifies instruments by a numeric "token"; humans use the symbol
- * (e.g. RELIANCE). We store both so we can translate between them.
+ * One tradable stock. Held in memory by {@link InstrumentStore} (not a DB table).
  *
- * In production this table is refreshed daily from Angel One's scrip-master file.
- * For Prompt 1 we seed a handful of well-known symbols so search works immediately.
+ * `token` is the exchange's numeric instrument token (for NSE, e.g. 2885 = RELIANCE —
+ * the same number Groww calls `exchange_token`). Every screen, URL and saved row
+ * (watchlist, orders, alerts) refers to stocks by this token, so it never changes
+ * when the broker changes.
+ *
+ * Broker-specific names are kept alongside:
+ *   tradingSymbol : RELIANCE        (Groww orders, quotes, LTP)
+ *   growwSymbol   : NSE-RELIANCE    (Groww historical candles)
+ *
+ * NSE only for now (decision D1).
  */
-@Entity
-@Table(name = "instrument", indexes = {
-        @Index(name = "idx_instrument_symbol", columnList = "symbol,exchange")
-})
 public class Instrument {
 
-    @Id
-    private String token;            // Angel One instrument token (primary key)
-
-    @Column(nullable = false)
-    private String symbol;           // e.g. RELIANCE
-
-    private String name;             // e.g. Reliance Industries Ltd
-
-    @Column(nullable = false)
-    private String exchange;         // NSE | BSE
-
-    private String segment;          // EQ | FUT | OPT ...
+    private final String token;
+    private final String symbol;          // display, e.g. RELIANCE
+    private final String name;            // e.g. Reliance Industries Ltd
+    private final String exchange;        // NSE | BSE
+    private final String segment;         // CASH | FNO
+    private String instrumentType = "EQ"; // EQ | IDX | FUT | CE | PE
+    private String tradingSymbol;
+    private String growwSymbol;
     private String isin;
     private Integer lotSize;
     private Double tickSize;
-    private String sector;
-
-    protected Instrument() { }
 
     public Instrument(String token, String symbol, String name, String exchange, String segment) {
         this.token = token;
@@ -41,6 +34,20 @@ public class Instrument {
         this.name = name;
         this.exchange = exchange;
         this.segment = segment;
+        this.tradingSymbol = symbol;
+        this.growwSymbol = exchange + "-" + symbol;
+    }
+
+    /** Fill in the broker-provided details (used when parsing the broker's instrument file). */
+    public Instrument withDetails(String instrumentType, String tradingSymbol, String growwSymbol,
+                                  String isin, Integer lotSize, Double tickSize) {
+        this.instrumentType = instrumentType;
+        this.tradingSymbol = tradingSymbol;
+        this.growwSymbol = growwSymbol;
+        this.isin = isin;
+        this.lotSize = lotSize;
+        this.tickSize = tickSize;
+        return this;
     }
 
     public String getToken() { return token; }
@@ -48,5 +55,10 @@ public class Instrument {
     public String getName() { return name; }
     public String getExchange() { return exchange; }
     public String getSegment() { return segment; }
-    public String getSector() { return sector; }
+    public String getInstrumentType() { return instrumentType; }
+    public String getTradingSymbol() { return tradingSymbol != null ? tradingSymbol : symbol; }
+    public String getGrowwSymbol() { return growwSymbol != null ? growwSymbol : exchange + "-" + symbol; }
+    public String getIsin() { return isin; }
+    public Integer getLotSize() { return lotSize; }
+    public Double getTickSize() { return tickSize; }
 }

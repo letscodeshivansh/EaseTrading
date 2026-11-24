@@ -106,7 +106,7 @@ export default function ScreenerPage() {
                 {result?.matches.map((m) => (
                   <tr key={m.token} className="border-t border-slate-800">
                     <td className="px-3 py-2 font-medium">{m.symbol}</td>
-                    <td className="px-3 py-2 text-brand">{(m.score * 100).toFixed(0)}%</td>
+                    <td className="px-3 py-2 text-brand-light">{(m.score * 100).toFixed(0)}%</td>
                     <td className="px-3 py-2">{fmt(m.values.pe_ratio)}</td>
                     <td className="px-3 py-2">{fmt(m.values.roe_pct)}</td>
                     <td className="px-3 py-2">{fmt(m.values.eps)}</td>

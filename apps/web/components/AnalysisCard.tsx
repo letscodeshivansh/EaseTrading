@@ -36,7 +36,7 @@ export default function AnalysisCard({ verdict, loading }: { verdict: Verdict | 
         </div>
         <div className="text-xs text-slate-400">
           conviction {(verdict.confidence * 100).toFixed(0)}% ·{" "}
-          <span className={verdict.source === "claude" ? "text-brand" : "text-slate-500"}>
+          <span className={verdict.source === "claude" ? "text-brand-light" : "text-slate-500"}>
             {verdict.source === "claude" ? "Claude" : "grounded analyst"}
           </span>
         </div>
@@ -102,7 +102,7 @@ function Memo({ markdown }: { markdown: string }) {
   return (
     <div className="space-y-1.5">
       {lines.map((line, i) => {
-        if (line.startsWith("### ")) return <h4 key={i} className="mt-2 font-semibold text-brand">{line.slice(4)}</h4>;
+        if (line.startsWith("### ")) return <h4 key={i} className="mt-2 font-semibold text-brand-light">{line.slice(4)}</h4>;
         if (line.startsWith("## ")) return <h3 key={i} className="text-base font-bold">{line.slice(3)}</h3>;
         if (line.trim() === "") return null;
         return <p key={i} className="text-slate-300">{renderBold(line)}</p>;

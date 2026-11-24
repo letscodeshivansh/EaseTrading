@@ -1,45 +1,66 @@
 package com.easetrading.api.marketdata;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 /**
- * The single place that records a live price. Both feeds call publish(tick); after
- * that the value is (a) cached in Redis for instant reads and (b) broadcast to every
- * connected browser via the Redis "ticks" pub/sub channel.
+ * The single place that records a live price — IN MEMORY (no Redis).
+ *
+ * Both feeds call publish(tick); the latest price per stock is kept in a map for
+ * instant reads, and every listener (the WebSocket handler) is told about it.
+ * Prices start empty after a restart and refill within seconds from the feed, which
+ * also means demo prices can never leak into real mode (old bug B23).
  */
 @Component
 public class QuoteCache {
 
-    /** Redis channel name that the WebSocket handler listens on. */
-    public static final String TICKS_CHANNEL = "chan:ticks";
+    // JavaTimeModule is required to write Tick.ts (an Instant) — see bug B22.
+    private final ObjectMapper json = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
-    private final StringRedisTemplate redis;
-    private final ObjectMapper json = new ObjectMapper();
+    private final Map<String, Tick> latest = new ConcurrentHashMap<>();
+    private final List<Consumer<String>> listeners = new CopyOnWriteArrayList<>();
 
-    public QuoteCache(StringRedisTemplate redis) {
-        this.redis = redis;
+    /** Register someone who wants every tick as JSON (e.g. the WebSocket handler). */
+    public void addListener(Consumer<String> listener) {
+        listeners.add(listener);
     }
 
-    /** Store the latest price and notify subscribers. */
+    /** Store the latest price and notify listeners. */
     public void publish(Tick tick) {
+        latest.put(tick.token(), tick);
         try {
             String payload = json.writeValueAsString(tick);
-            // 1) Hot cache: latest LTP per token, expires if no updates for a while.
-            redis.opsForValue().set("quote:" + tick.token(), payload, Duration.ofMinutes(10));
-            // 2) Fan-out: anyone subscribed to the channel (our WebSocket handler) gets it.
-            redis.convertAndSend(TICKS_CHANNEL, payload);
+            for (Consumer<String> l : listeners) l.accept(payload);
         } catch (Exception e) {
             // A single bad tick must never crash the feed loop.
             System.err.println("Failed to publish tick: " + e.getMessage());
         }
     }
 
-    /** Latest cached price for one token, or null if we have none yet. */
+    /** Latest tick as JSON ({token, ltp, ts}) for one token, or null if we have none yet. */
     public String latest(String token) {
-        return redis.opsForValue().get("quote:" + token);
+        Tick t = latest.get(token);
+        if (t == null) return null;
+        try {
+            return json.writeValueAsString(t);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Latest price for one token, or 0 if unknown. */
+    public double latestPrice(String token) {
+        Tick t = latest.get(token);
+        return t == null ? 0 : t.ltp();
     }
 }

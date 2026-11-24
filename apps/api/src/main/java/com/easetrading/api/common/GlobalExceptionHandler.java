@@ -22,6 +22,12 @@ public class GlobalExceptionHandler {
         return build(ex.getStatus(), ex.getMessage());
     }
 
+    /** Broker (Groww) failures: tell the user what the broker said, as a 502. */
+    @ExceptionHandler(com.easetrading.api.broker.groww.GrowwException.class)
+    public ResponseEntity<Map<String, Object>> handleBroker(com.easetrading.api.broker.groww.GrowwException ex) {
+        return build(HttpStatus.BAD_GATEWAY, ex.getMessage());
+    }
+
     /** Any unexpected error becomes a safe 500 (no stack traces leak to clients). */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleOther(Exception ex) {

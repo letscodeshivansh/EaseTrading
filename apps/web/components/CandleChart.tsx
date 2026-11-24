@@ -69,7 +69,7 @@ export default function CandleChart({
     getCandles(token, "1d", 250)
       .then((candles) => {
         const data: CandlestickData[] = candles.map((c) => ({
-          time: c.ts.slice(0, 10) as Time,
+          time: istDate(c.ts) as Time,
           open: c.open, high: c.high, low: c.low, close: c.close,
         }));
         series.setData(data);
@@ -156,4 +156,13 @@ function movingAverage(points: { time: Time; close: number }[], period: number):
     if (i >= period - 1) out.push({ time: points[i].time, value: sum / period });
   }
   return out;
+}
+
+/**
+ * The trading date (YYYY-MM-DD) of a candle in India time. Daily bars are stamped at
+ * midnight IST, which is 18:30 UTC the previous day, so slicing the UTC string would
+ * show every bar one day early.
+ */
+function istDate(ts: string): string {
+  return new Date(new Date(ts).getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
 }

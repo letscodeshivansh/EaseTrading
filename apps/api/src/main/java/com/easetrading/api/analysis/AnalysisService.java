@@ -4,7 +4,7 @@ import com.easetrading.api.common.ApiException;
 import com.easetrading.api.fundamental.Fundamental;
 import com.easetrading.api.fundamental.FundamentalService;
 import com.easetrading.api.instrument.Instrument;
-import com.easetrading.api.instrument.InstrumentRepository;
+import com.easetrading.api.instrument.InstrumentStore;
 import com.easetrading.api.marketdata.CandleDto;
 import com.easetrading.api.marketdata.CandleService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -28,13 +28,13 @@ import java.util.Map;
 @Service
 public class AnalysisService {
 
-    private final InstrumentRepository instruments;
+    private final InstrumentStore instruments;
     private final CandleService candleService;
     private final FundamentalService fundamentalService;
     private final AnalysisClient analysisClient;
     private final AnalysisReportRepository reports;
 
-    public AnalysisService(InstrumentRepository instruments, CandleService candleService,
+    public AnalysisService(InstrumentStore instruments, CandleService candleService,
                            FundamentalService fundamentalService, AnalysisClient analysisClient,
                            AnalysisReportRepository reports) {
         this.instruments = instruments;
@@ -45,7 +45,7 @@ public class AnalysisService {
     }
 
     public JsonNode analyze(String token, String strategy) {
-        Instrument inst = instruments.findById(token)
+        Instrument inst = instruments.get(token)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Unknown instrument: " + token));
 
         // 1) Gather inputs.

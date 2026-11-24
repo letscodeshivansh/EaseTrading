@@ -3,21 +3,16 @@
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import { listAlerts, createAlert, deleteAlert } from "@/lib/api";
+import { useStockChoices } from "@/hooks/useStockChoices";
 import type { Alert } from "@/lib/types";
 
-const SYMBOLS = [
-  { token: "2885", symbol: "RELIANCE" },
-  { token: "11536", symbol: "TCS" },
-  { token: "1333", symbol: "HDFCBANK" },
-];
-
 const STATUS_COLOR: Record<string, string> = {
-  ACTIVE: "text-brand", TRIGGERED: "text-up", DISABLED: "text-slate-500",
+  ACTIVE: "text-brand-light", TRIGGERED: "text-up", DISABLED: "text-slate-500",
 };
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [sel, setSel] = useState(SYMBOLS[0]);
+  const { choices: SYMBOLS, sel, setSel } = useStockChoices();
   const [type, setType] = useState<"PRICE" | "RSI">("PRICE");
   const [operator, setOperator] = useState<"GT" | "LT">("GT");
   const [threshold, setThreshold] = useState(1500);
@@ -28,6 +23,7 @@ export default function AlertsPage() {
   useEffect(refresh, []);
 
   async function add() {
+    if (!sel) return;
     await createAlert({ token: sel.token, symbol: sel.symbol, type, operator, threshold });
     refresh();
   }
@@ -40,7 +36,7 @@ export default function AlertsPage() {
         <section className="md:w-80">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-400">New alert</h2>
           <div className="space-y-2 rounded-lg border border-slate-800 p-3">
-            <select value={sel.token} onChange={(e) => setSel(SYMBOLS.find((s) => s.token === e.target.value)!)}
+            <select value={sel?.token ?? ""} onChange={(e) => setSel(SYMBOLS.find((s) => s.token === e.target.value) ?? null)}
               className="w-full rounded bg-slate-800 px-2 py-1 text-sm">
               {SYMBOLS.map((s) => <option key={s.token} value={s.token}>{s.symbol}</option>)}
             </select>

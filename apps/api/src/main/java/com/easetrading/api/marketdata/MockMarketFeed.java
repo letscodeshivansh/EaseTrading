@@ -1,5 +1,6 @@
 package com.easetrading.api.marketdata;
 
+import com.easetrading.api.broker.mock.MockPrices;
 import com.easetrading.api.instrument.Instrument;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -12,13 +13,13 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Development market feed: generates realistic-looking ticks with a random walk so
- * the whole app (chart, watchlist, WebSocket) works WITHOUT Angel One credentials.
+ * the whole app (chart, watchlist, WebSocket) works WITHOUT broker credentials.
  *
- * Active only when easetrading.market.feed-mode = mock (the default). Swap to "live"
- * and {@link AngelOneMarketFeed} takes over with zero other changes.
+ * Active when easetrading.broker.provider = mock (the default). Switch to "groww"
+ * and {@link GrowwMarketFeed} takes over with zero other changes.
  */
 @Component
-@ConditionalOnProperty(name = "easetrading.market.feed-mode", havingValue = "mock", matchIfMissing = true)
+@ConditionalOnProperty(name = "easetrading.broker.provider", havingValue = "mock", matchIfMissing = true)
 public class MockMarketFeed {
 
     private final MarketSubscription subscription;
@@ -30,7 +31,6 @@ public class MockMarketFeed {
     public MockMarketFeed(MarketSubscription subscription, QuoteCache quoteCache) {
         this.subscription = subscription;
         this.quoteCache = quoteCache;
-        System.out.println("[MarketFeed] MOCK feed active — generating simulated ticks.");
     }
 
     /** Emits one tick per subscribed instrument, ~4 times a second for a smooth chart. */
@@ -38,7 +38,8 @@ public class MockMarketFeed {
     public void emitTicks() {
         for (Instrument instrument : subscription.all().values()) {
             String token = instrument.getToken();
-            double prev = lastPrice.getOrDefault(token, seedPriceFor(token));
+            // Starts from the same base price the mock candle history ends at.
+            double prev = lastPrice.getOrDefault(token, MockPrices.base(token));
 
             // Random walk: nudge price by up to +/-0.15%, keep it positive.
             double driftPct = ThreadLocalRandom.current().nextDouble(-0.0015, 0.0015);
@@ -47,18 +48,6 @@ public class MockMarketFeed {
 
             quoteCache.publish(new Tick(token, round2(next), Instant.now()));
         }
-    }
-
-    /** A plausible starting price so different stocks look different on screen. */
-    private double seedPriceFor(String token) {
-        return switch (token) {
-            case "2885" -> 1420;   // RELIANCE
-            case "11536" -> 3850;  // TCS
-            case "1333" -> 1650;   // HDFCBANK
-            case "4963" -> 1180;   // ICICIBANK
-            case "1594" -> 1550;   // INFY
-            default -> 1000 + ThreadLocalRandom.current().nextInt(500);
-        };
     }
 
     private double round2(double v) { return Math.round(v * 100.0) / 100.0; }

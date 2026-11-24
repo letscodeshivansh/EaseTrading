@@ -2,7 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dark, trading-desk feel by default. */
+/* Dark, calm trading-desk look. A faint indigo glow at the top gives depth. */
 body {
-  @apply bg-slate-950 text-slate-100;
+  @apply bg-slate-950 text-slate-100 antialiased;
+  background-image: radial-gradient(1200px 500px at 50% -200px, rgba(99, 102, 241, 0.12), transparent 70%);
+  background-attachment: fixed;
+  font-feature-settings: "cv11", "ss01";
+}
+
+::selection {
+  background: rgba(99, 102, 241, 0.35);
+}
+
+/* Slim, quiet scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2e3852 transparent;
+}
+
+@layer components {
+  /* The standard raised surface used for every panel. */
+  .card {
+    @apply rounded-xl border border-slate-800 bg-slate-900/70 shadow-card backdrop-blur-sm;
+  }
+  .section-title {
+    @apply text-xs font-semibold uppercase tracking-wider text-slate-400;
+  }
 }

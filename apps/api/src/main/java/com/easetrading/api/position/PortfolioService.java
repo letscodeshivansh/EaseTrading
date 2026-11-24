@@ -2,7 +2,7 @@ package com.easetrading.api.position;
 
 import com.easetrading.api.common.CurrentUserService;
 import com.easetrading.api.instrument.Instrument;
-import com.easetrading.api.instrument.InstrumentRepository;
+import com.easetrading.api.instrument.InstrumentStore;
 import com.easetrading.api.marketdata.QuoteCache;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -19,12 +19,12 @@ import java.util.List;
 public class PortfolioService {
 
     private final PositionRepository positions;
-    private final InstrumentRepository instruments;
+    private final InstrumentStore instruments;
     private final QuoteCache quoteCache;
     private final CurrentUserService currentUser;
     private final ObjectMapper json = new ObjectMapper();
 
-    public PortfolioService(PositionRepository positions, InstrumentRepository instruments,
+    public PortfolioService(PositionRepository positions, InstrumentStore instruments,
                             QuoteCache quoteCache, CurrentUserService currentUser) {
         this.positions = positions;
         this.instruments = instruments;
@@ -81,29 +81,33 @@ public class PortfolioService {
         double totalPnlPct = totalInvested > 0 ? totalPnl / totalInvested * 100 : 0;
 
         return new PortfolioView(holdings, round(totalInvested), round(totalMarket),
-                round(totalPnl), round(totalPnlPct), riskView(holdings));
+                round(totalPnl), round(totalPnlPct),
+                riskOf(holdings.stream().map(Holding::allocationPct).toList()));
     }
 
-    /** Simple concentration risk: largest holding % and a Herfindahl-style index. */
-    private RiskView riskView(List<Holding> holdings) {
-        if (holdings.isEmpty()) {
+    /**
+     * Simple concentration risk from each holding's allocation %: the largest holding
+     * and a Herfindahl-style index. Shared by the paper and the real (broker) portfolio.
+     */
+    public static RiskView riskOf(List<Double> allocationPcts) {
+        if (allocationPcts.isEmpty()) {
             return new RiskView(0, 0, 0, "No holdings yet.");
         }
-        double largest = holdings.stream().mapToDouble(Holding::allocationPct).max().orElse(0);
+        double largest = allocationPcts.stream().mapToDouble(Double::doubleValue).max().orElse(0);
         // Herfindahl index: sum of squared allocation fractions (1 = all in one stock).
-        double hhi = holdings.stream()
-                .mapToDouble(h -> Math.pow(h.allocationPct() / 100.0, 2)).sum();
+        double hhi = allocationPcts.stream().mapToDouble(a -> Math.pow(a / 100.0, 2)).sum();
 
         String assessment;
         if (largest > 40 || hhi > 0.5) assessment = "High concentration — consider diversifying.";
         else if (largest > 25 || hhi > 0.3) assessment = "Moderate concentration.";
         else assessment = "Well diversified.";
 
-        return new RiskView(holdings.size(), round(largest), round(hhi), assessment);
+        return new RiskView(allocationPcts.size(), Math.round(largest * 100.0) / 100.0,
+                Math.round(hhi * 100.0) / 100.0, assessment);
     }
 
     private String symbolOf(String token) {
-        return instruments.findById(token).map(Instrument::getSymbol).orElse(token);
+        return instruments.get(token).map(Instrument::getSymbol).orElse(token);
     }
 
     private double latestPrice(String token) {

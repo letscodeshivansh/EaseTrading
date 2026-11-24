@@ -7,16 +7,18 @@ import type { Tick } from "@/lib/types";
 /**
  * Opens ONE WebSocket to the backend and keeps a live map of token -> latest price.
  *
- * Every component that needs live prices can call this hook; React shares the state.
- * The socket auto-reconnects if the connection drops (e.g. the API restarts).
+ * Pass the tokens this screen cares about; the hook asks the backend to stream them
+ * (and asks again after a reconnect). The socket auto-reconnects if it drops.
  *
  * Returns: { quotes, subscribe }
  *   quotes      = { [token]: ltp }
- *   subscribe() = ask the backend to start streaming a new token
+ *   subscribe() = ask the backend to start streaming one more token
  */
-export function useLiveQuotes() {
+export function useLiveQuotes(tokens: string[] = []) {
   const [quotes, setQuotes] = useState<Record<string, number>>({});
   const socketRef = useRef<WebSocket | null>(null);
+  const tokensRef = useRef<string[]>(tokens);
+  tokensRef.current = tokens;
 
   useEffect(() => {
     let closed = false;
@@ -26,11 +28,15 @@ export function useLiveQuotes() {
       const ws = new WebSocket(`${WS_BASE}/api/stream`);
       socketRef.current = ws;
 
+      ws.onopen = () => {
+        for (const t of tokensRef.current) send(ws, t);
+      };
+
       ws.onmessage = (event) => {
         try {
           const tick = JSON.parse(event.data) as Tick;
           if (tick.token) {
-            setQuotes((prev) => ({ ...prev, [tick.token]: tick.ltp }));
+            setQuotes((prev) => (prev[tick.token] === tick.ltp ? prev : { ...prev, [tick.token]: tick.ltp }));
           }
         } catch {
           /* ignore malformed frames */
@@ -45,7 +51,6 @@ export function useLiveQuotes() {
 
     connect();
 
-    // Cleanup when the component using the hook unmounts.
     return () => {
       closed = true;
       clearTimeout(reconnectTimer);
@@ -53,12 +58,21 @@ export function useLiveQuotes() {
     };
   }, []);
 
+  // When the screen's list of stocks changes, subscribe to the new ones.
+  const key = tokens.join(",");
+  useEffect(() => {
+    const ws = socketRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) for (const t of tokensRef.current) send(ws, t);
+  }, [key]);
+
   function subscribe(token: string) {
     const ws = socketRef.current;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ action: "subscribe", token }));
-    }
+    if (ws && ws.readyState === WebSocket.OPEN) send(ws, token);
   }
 
   return { quotes, subscribe };
+}
+
+function send(ws: WebSocket, token: string) {
+  ws.send(JSON.stringify({ action: "subscribe", token }));
 }

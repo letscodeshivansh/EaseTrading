@@ -3,7 +3,8 @@
 
 import type {
   Candle, Instrument, Indicators, Fundamentals, ScreenResult, Verdict,
-  Order, DraftResult, PortfolioView, Alert,
+  Order, DraftResult, PaperPortfolio, Alert,
+  Mode, BrokerStatus, Funds, BrokerPortfolio, Dashboard, WatchRow, StockDetail,
 } from "./types";
 
 const API_BASE =
@@ -12,20 +13,31 @@ const API_BASE =
 export const WS_BASE =
   process.env.NEXT_PUBLIC_WS_BASE_URL ?? "ws://localhost:8080";
 
+/** Throws an Error carrying the api's own message ({message: "..."}) when there is one. */
+async function check(res: Response, path: string): Promise<Response> {
+  if (res.ok) return res;
+  let message = `API ${path} failed: ${res.status}`;
+  try {
+    const body = await res.json();
+    if (body?.message) message = body.message;
+  } catch {
+    /* not JSON */
+  }
+  throw new Error(message);
+}
+
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
+  const res = await check(await fetch(`${API_BASE}${path}`, { cache: "no-store" }), path);
   return res.json() as Promise<T>;
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await check(await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
+  }), path);
   return res.json() as Promise<T>;
 }
 
@@ -61,9 +73,8 @@ export function analyze(token: string, strategy: string) {
 
 // ---- Prompt 4: orders, portfolio, alerts ----
 
-async function del(path: string): Promise<void> {
-  const res = await fetch(`${API_BASE}${path}`, { method: "DELETE" });
-  if (!res.ok) throw new Error(`API ${path} failed: ${res.status}`);
+async function del(path: string): Promise<Response> {
+  return check(await fetch(`${API_BASE}${path}`, { method: "DELETE" }), path);
 }
 
 /** Step 1: create a DRAFT order and get back the risk report (nothing is executed). */
@@ -86,8 +97,9 @@ export function listOrders() {
   return getJson<Order[]>(`/api/orders`);
 }
 
-export function getPortfolio() {
-  return getJson<PortfolioView>(`/api/portfolio`);
+/** Holdings built from paper trades placed in this app. */
+export function getPaperPortfolio() {
+  return getJson<PaperPortfolio>(`/api/portfolio/paper`);
 }
 
 export function listAlerts() {
@@ -100,6 +112,48 @@ export function createAlert(body: {
   return postJson<Alert>(`/api/alerts`, body);
 }
 
-export function deleteAlert(id: string) {
-  return del(`/api/alerts/${id}`);
+export async function deleteAlert(id: string): Promise<void> {
+  await del(`/api/alerts/${id}`);
+}
+
+// ---- Broker: dashboard, real portfolio, stocks, watchlist ----
+
+export function getMode() {
+  return getJson<Mode>(`/api/dashboard/mode`);
+}
+
+/** Everything the home screen needs in one call. */
+export function getDashboard() {
+  return getJson<Dashboard>(`/api/dashboard`);
+}
+
+export function getBrokerStatus() {
+  return getJson<BrokerStatus>(`/api/broker/status`);
+}
+
+export function getFunds() {
+  return getJson<Funds>(`/api/broker/funds`);
+}
+
+/** My real holdings (Groww) or demo holdings (mock), with live P&L. */
+export function getPortfolio() {
+  return getJson<BrokerPortfolio>(`/api/portfolio`);
+}
+
+/** One stock + its live quote. */
+export function getStock(token: string) {
+  return getJson<StockDetail>(`/api/instruments/${token}`);
+}
+
+export function getWatchlist() {
+  return getJson<WatchRow[]>(`/api/watchlist`);
+}
+
+export function addToWatchlist(token: string) {
+  return postJson<WatchRow[]>(`/api/watchlist`, { token });
+}
+
+export async function removeFromWatchlist(token: string) {
+  const res = await del(`/api/watchlist/${token}`);
+  return res.json() as Promise<WatchRow[]>;
 }
