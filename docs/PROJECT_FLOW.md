@@ -8,7 +8,7 @@
 > | **Last updated** | 2026-11-24 (Groww G1–G3) |
 > | **Code version** | uncommitted changes on top of `1f8d7f1` (main) |
 > | **Reviewed by** | Full line-by-line read of `apps/analysis`, `apps/api`, `apps/web`, `infra`, `render.yaml` |
-> | **Tests run?** | ✅ Java: 24/24 pass (`mvn test`). ✅ Web: `tsc` + `next build` pass. ✅ Mock mode checked end-to-end in the browser. ❌ Python tests not run (no pandas on this Mac). ✅ First real Groww run 2026-11-24: login, profile, funds, holdings, positions, stock list OK — **market data blocked on the free plan** (see §2). |
+> | **Tests run?** | ✅ Java: 27/27 pass (`mvn test`). ✅ Web: `tsc` + `next build` pass. ✅ Mock mode checked end-to-end in the browser. ❌ Python tests not run (no pandas on this Mac). ✅ First real Groww run 2026-11-24: login, profile, funds, holdings, positions, stock list OK — **market data blocked on the free plan** (see §2). |
 
 **Legend used everywhere below**
 
@@ -94,34 +94,9 @@ The one table to check first. Update it whenever anything changes.
 | 18 | Alerts | 🟡 | Stock picker uses watchlist; still no email/push; B17 |
 | 19 | Login / auth | ❌ | Still open to anyone who reaches the api (B6) — keep local only |
 | 20 | Header shows real data source + trading mode | ✅ | Part of B18 fixed |
-| 21 | Deploy: Docker Compose | ✅ | Ports bound to 127.0.0.1; run with `--env-file ../.env` |
-| 22 | Deploy: Render + Vercel | 🟡 | Keep `BROKER_PROVIDER=mock` there until B6 is fixed |
-| 23 | Automated tests | 🟡 | Java 24 pass; Python not run |
-
----|---|---|---|
-| 1 | Live prices on dashboard (mock feed) | 🟡 | Works, but nothing streams on the very first boot of a fresh DB — 🐞 B7 |
-| 2 | Live prices from Angel One (live feed) | 🟡 | Polls REST once a second. Real tick WebSocket not built yet. |
-| 3 | Candle chart + SMA/Fib overlays | 🟡 | Works. History never refreshes — 🐞 B9. In mock mode the last candle jumps — 🐞 B8 |
-| 4 | Technical indicators (RSI, MACD, BB, SMA/EMA, Fib, S/R, volume) | ✅ | Pure functions with unit tests (not run yet) |
-| 5 | Fundamentals (mock) | 🟡 | Works, but every number moves together — 🐞 B10 |
-| 6 | Fundamentals (Yahoo, `auto` mode) | 🟡 | Debt/Equity unit mismatch — 🐞 B11 |
-| 7 | FII/DII holdings from NSE/BSE | ❌ | Stub returns `None`, so mock data fills the gap |
-| 8 | Screener (UI → API → Python) | ✅ | 10 seeded stocks only |
-| 9 | 10 strategy personas + grounded verdict | ✅ | Deterministic fallback works offline |
-| 10 | Claude writing the verdict (Agent SDK) | ❌ | Code exists but can never succeed — 🐞 B1, B2 |
-| 11 | **MCP server usable from Claude** | 🟡 | Tools are defined, but not registered in any Claude app, and two tools are broken — 🐞 B3, B4, B5 |
-| 12 | Order draft → risk check → confirm (paper) | 🟡 | Works. Gaps: 🐞 B13, B14, B15 |
-| 13 | Live orders to Angel One | 🟡 | Order is sent, but its status never updates afterwards — 🐞 B12 |
-| 14 | Portfolio + P&L + concentration risk | ✅ | |
-| 15 | Price and RSI alerts | 🟡 | Work in-app. No email/push. Delete isn't owner-checked — 🐞 B17 |
-| 16 | Login / register (backend) | 🟡 | Endpoints exist, but no screen uses them — 🐞 B18 |
-| 17 | Security / auth on trading endpoints | ❌ | Orders, portfolio and alerts are open to anyone who can reach the API — 🐞 B6 |
-| 18 | Broker connect (store encrypted Angel One creds) | 🟡 | Saves creds but never uses them; re-connect ignores new values — 🐞 B16 |
-| 19 | Watchlists (user-managed) | ❌ | UI hard-codes 3 stocks. No watchlist table yet. |
-| 20 | Symbol master (all NSE/BSE stocks) | ❌ | Only 10 stocks are seeded |
-| 21 | Deploy: Docker Compose (local) | ✅ | |
-| 22 | Deploy: Render (API + analysis) + Vercel (web) | ✅ | Free tier. Read §6 before exposing it publicly. |
-| 23 | Automated tests | 🟡 | 22 Python + 6 Java tests exist; not run in this review |
+| 21 | Run locally — **no Docker, no DB server** | ✅ | One SQLite file (`apps/api/easetrading.db`); Docker Compose optional (api + analysis + web only) |
+| 22 | Deploy: Render + Vercel | 🟡 | Keep `BROKER_PROVIDER=mock` until B6 is fixed. Free Render has no disk → SQLite data resets on each deploy |
+| 23 | Automated tests | 🟡 | Java 27 pass; Python not run |
 
 ---
 
@@ -151,8 +126,8 @@ flowchart LR
       MCP["MCP server<br/>(separate process, stdio)"]
     end
 
-    PG[("PostgreSQL<br/>users, orders, candles…")]
-    RD[("Redis<br/>latest price + pub/sub")]
+    PG[("SQLite file<br/>watchlist · alerts · paper trades · history")]
+    MEM["In memory<br/>stock list · live prices · candle & fundamentals cache"]
     AO[["Groww Trade API"]]
     YF[["Yahoo Finance"]]
 
@@ -160,8 +135,8 @@ flowchart LR
     PAGES -- "HTTP + WebSocket" --> CTRL
     CTRL --> ORD
     CTRL -- "HTTP" --> IND & FUN & SCR & VER
-    FEED --> RD
-    RD -- "ticks" --> CTRL
+    FEED --> MEM
+    MEM -- "ticks" --> CTRL
     CTRL --> PG
     ORD --> PG
     FEED -. "BROKER_PROVIDER=groww<br/>LTP polling" .-> AO
@@ -176,8 +151,8 @@ flowchart LR
 **In plain words**
 
 - The **browser only talks to the api**, never to Python or the broker directly.
-- The **api asks Python** to do any maths, then saves the results in Postgres.
-- **Prices** go: feed → Redis → WebSocket → browser.
+- The **api asks Python** to do any maths. It **saves only what the app owns** (watchlist, alerts, paper trades, history) in one **SQLite file**; everything the broker owns is fetched live and cached briefly **in memory**.
+- **Prices** go: feed → in-memory price map → WebSocket → browser (no Redis).
 - **Claude** can connect in two ways. Neither works end-to-end yet (see §5.6 and §5.7):
   1. The analysis service calls Claude itself through the Agent SDK.
   2. Claude (Desktop/Code) calls our **MCP server** tools.
@@ -188,16 +163,15 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    S["docker compose --env-file ../.env up"] --> PG["Postgres + Redis start<br/>health-checked"]
-    PG --> A["api starts"]
-    A --> A1["Hibernate creates/updates tables<br/>ddl-auto: update"]
+    S["mvn spring-boot:run (or docker compose)"] --> A["api starts"]
+    A --> A1["SQLite file opened/created<br/>tables created/updated (ddl-auto: update)"]
     A1 --> B{"BROKER_PROVIDER"}
     B -- "mock" --> BM["MockBrokerAdapter + MockMarketFeed (250 ms ticks)"]
     B -- "groww" --> BG["GrowwAdapter + GrowwMarketFeed (LTP every 2 s in market hours)"]
     A1 --> I1["① InstrumentSync (@Order 1)"]
     I1 --> I2{"provider?"}
-    I2 -- "groww" --> I3["Download Groww instrument CSV<br/>upsert all NSE equities"]
-    I2 -- "mock" --> I4["Seed 10 stocks if empty"]
+    I2 -- "groww" --> I3["Download Groww instrument CSV<br/>load ≈4,300 NSE equities into memory"]
+    I2 -- "mock" --> I4["10 well-known stocks in memory"]
     I3 -- "download fails" --> I4
     I3 --> SB["② SubscriptionBootstrap (@Order 2)<br/>stream: 3 defaults + every watchlist stock + my holdings"]
     I4 --> SB
@@ -216,7 +190,8 @@ flowchart TD
 | ② Decide what streams (runs after ①, fixes B7) | [SubscriptionBootstrap.java:40](../apps/api/src/main/java/com/easetrading/api/marketdata/SubscriptionBootstrap.java#L40) |
 | Broker chosen by `easetrading.broker.provider` | [MockBrokerAdapter.java:26](../apps/api/src/main/java/com/easetrading/api/broker/mock/MockBrokerAdapter.java#L26), [GrowwAdapter.java:26](../apps/api/src/main/java/com/easetrading/api/broker/groww/GrowwAdapter.java#L26) |
 | Executor chosen by `easetrading.trading.mode` (live = blocked) | [PaperTradeExecutor.java:18](../apps/api/src/main/java/com/easetrading/api/order/PaperTradeExecutor.java#L18), [LiveTradeExecutor.java:17](../apps/api/src/main/java/com/easetrading/api/order/LiveTradeExecutor.java#L18) |
-| If no AES key is set, a temporary one is generated (stored broker creds become unreadable after a restart) | [CryptoService.java:36](../apps/api/src/main/java/com/easetrading/api/security/CryptoService.java#L36) |
+| Stock list held in memory (search, lookups) | [InstrumentStore.java](../apps/api/src/main/java/com/easetrading/api/instrument/InstrumentStore.java) |
+| Database = one SQLite file (`DB_PATH`, default `apps/api/easetrading.db`) | [application.yml](../apps/api/src/main/resources/application.yml) |
 
 ---
 
@@ -233,9 +208,8 @@ flowchart LR
     F -- groww --> GW["GrowwMarketFeed<br/>GET /v1/live-data/ltp (≤50 stocks/call)<br/>every 2 s in market hours, 60 s otherwise"]
     MK --> QC["QuoteCache.publish(tick)"]
     GW --> QC
-    QC --> K[("Redis quote:{token}<br/>kept 24 h")]
-    QC --> CH[("Redis channel chan:ticks")]
-    CH --> WS["MarketStreamHandler → every browser"]
+    QC --> K["In-memory map<br/>latest price per stock"]
+    QC --> WS["MarketStreamHandler → every browser<br/>(direct push, no Redis)"]
     WS --> HK["useLiveQuotes(tokens)<br/>subscribes this page's stocks"]
     HK --> UI["Watchlist · stock page · portfolio rows"]
 ```
@@ -244,8 +218,8 @@ flowchart LR
 |---|---|---|
 | 1 | Mock feed: fake price per streamed stock | [MockMarketFeed.java:37](../apps/api/src/main/java/com/easetrading/api/marketdata/MockMarketFeed.java#L37) |
 | 1′ | Groww feed: batched LTP, paced by the rate limiter, only in market hours | [GrowwMarketFeed.java:43](../apps/api/src/main/java/com/easetrading/api/marketdata/GrowwMarketFeed.java#L43), [MarketHours.java](../apps/api/src/main/java/com/easetrading/api/marketdata/MarketHours.java) |
-| 2 | Saved to Redis + broadcast (now with a Java-time-aware mapper — B22) | [QuoteCache.java:34](../apps/api/src/main/java/com/easetrading/api/marketdata/QuoteCache.java#L34) |
-| 3 | WebSocket forwards to all browsers | [MarketStreamHandler.java:75](../apps/api/src/main/java/com/easetrading/api/stream/MarketStreamHandler.java#L75) |
+| 2 | Kept in memory + pushed to listeners (Java-time-aware JSON — B22) | [QuoteCache.java:34](../apps/api/src/main/java/com/easetrading/api/marketdata/QuoteCache.java#L34) |
+| 3 | WebSocket forwards to all browsers (thread-safe session wrappers) | [MarketStreamHandler.java](../apps/api/src/main/java/com/easetrading/api/stream/MarketStreamHandler.java) |
 | 4 | Each page subscribes the stocks it shows; re-subscribes after reconnect | [useLiveQuotes.ts:17](../apps/web/hooks/useLiveQuotes.ts#L17) |
 
 **What streams:** 3 defaults, plus every watchlist stock, plus your holdings, plus any stock page you open.
@@ -260,13 +234,12 @@ flowchart LR
 ```mermaid
 flowchart TD
     B["Chart: getCandles(token, 1d, 250 days)"] --> C["GET /api/candles/{token}"]
-    C --> S["Look at stored bars for this token + interval<br/>+ active source (MOCK or GROWW)"]
-    S --> G{"Gaps?<br/>older than first bar /<br/>newer than last bar"}
-    G -- "none" --> R["Return stored range"]
-    G -- "yes" --> BR{"Broker"}
+    C --> S{"In memory and fresh?<br/>daily 15 min · intraday 1 min<br/>covers the asked range?"}
+    S -- "yes" --> R["Return the requested range"]
+    S -- "no" --> BR{"Broker"}
     BR -- mock --> SY["Deterministic history<br/>ending at the live mock price"]
     BR -- groww --> GW["GET /v1/historical/candles<br/>in ≤180-day chunks (daily)"]
-    SY --> SV["Save with source tag"]
+    SY --> SV["Keep in memory (max 300 series, LRU)"]
     GW --> SV
     SV --> R
     R --> CH["CandleChart (dates shown in IST)<br/>+ SMA 50/200 + Fib lines + live last bar"]
@@ -274,8 +247,7 @@ flowchart TD
 
 | Step | Code |
 |---|---|
-| Gap-filling cache (fixes B9) | [CandleService.java:45](../apps/api/src/main/java/com/easetrading/api/marketdata/CandleService.java#L45) |
-| Source tag so demo bars never mix with real ones | [Candle.java](../apps/api/src/main/java/com/easetrading/api/marketdata/Candle.java) |
+| In-memory candle cache (no DB table; the broker already stores history) | [CandleService.java](../apps/api/src/main/java/com/easetrading/api/marketdata/CandleService.java) |
 | Groww candles, chunking, interval mapping | [GrowwAdapter.java:126](../apps/api/src/main/java/com/easetrading/api/broker/groww/GrowwAdapter.java#L126) |
 | Mock history (fixes B8) | [MockBrokerAdapter.java:107](../apps/api/src/main/java/com/easetrading/api/broker/mock/MockBrokerAdapter.java#L107) |
 | Chart, IST date fix | [CandleChart.tsx](../apps/web/components/CandleChart.tsx) |
@@ -308,22 +280,22 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A["GET /api/fundamentals/{token}"] --> T{"Fetched today already?<br/>(fundamental table)"}
-    T -- Yes --> R["Return saved row"]
+    A["GET /api/fundamentals/{token}"] --> T{"Fetched today already?<br/>(in-memory cache)"}
+    T -- Yes --> R["Return today's copy"]
     T -- No --> P["GET analysis /fundamentals/{symbol}"]
     P --> M{"FUNDAMENTALS_MODE"}
     M -- mock --> MK["MockProvider<br/>numbers from a hash of the symbol<br/>🐞 B10"]
     M -- auto --> Y["YahooProvider (yfinance)<br/>P/E, EPS, ROE, growth, D/E<br/>🐞 B11 D/E unit"]
     Y --> N["NseBseProvider<br/>❌ stub, returns nothing"]
     N --> BF["Fill any blanks from MockProvider"]
-    MK --> SV["Save as today's row"]
+    MK --> SV["Remember as today's copy"]
     BF --> SV
     SV --> R
 ```
 
 | Step | Code |
 |---|---|
-| Cache-per-day logic | [FundamentalService.java:34](../apps/api/src/main/java/com/easetrading/api/fundamental/FundamentalService.java#L34) |
+| Cache-per-day logic (in memory) | [FundamentalService.java](../apps/api/src/main/java/com/easetrading/api/fundamental/FundamentalService.java) |
 | Mode switch | [fundamentals/service.py:22](../apps/analysis/fundamentals/service.py#L22) |
 | Providers | [providers.py](../apps/analysis/fundamentals/providers.py) |
 
@@ -449,7 +421,7 @@ flowchart TD
     T["OrderTicket: side, type, qty, price"] --> R["Review → POST /api/orders"]
     MCPD["MCP prepare_order"] --> R
     R --> D1["Look up instrument"]
-    D1 --> D2["Latest price from Redis<br/>🐞 B14: 0 if none → order value ₹0"]
+    D1 --> D2["Latest price (in memory)<br/>🐞 B14: 0 if none → order value ₹0"]
     D2 --> RK["RiskEngine checks"]
     RK --> C1["1. Qty > 0"]
     RK --> C2["2. Value ≤ ₹1,00,000"]
@@ -536,7 +508,7 @@ flowchart TD
     UI["Alerts page: stock, PRICE/RSI, above/below, value"] --> C["POST /api/alerts → ACTIVE"]
     LOOP["Every 10 s: AlertService.evaluateAll()"] --> EA["For each ACTIVE alert"]
     EA --> TY{"Type"}
-    TY -- PRICE --> RP["Price from Redis"]
+    TY -- PRICE --> RP["Latest price (in memory)"]
     TY -- RSI --> RR["250 days of candles → Python /indicators → rsi14"]
     RP --> CK{"Condition met?"}
     RR --> CK
@@ -603,11 +575,11 @@ When fixed, change the Status to ✅ and add the commit.
 | B17 | ⚪ | Alerts | Deleting an alert doesn't check that it's yours. | [AlertService.java:63](../apps/api/src/main/java/com/easetrading/api/alert/AlertService.java#L63) | Open |
 | B18 | 🟡 | Web | There's no login screen and no token is sent. The header always says "Paper trading", even in live mode. | [api.ts:15](../apps/web/lib/api.ts#L15), [Header.tsx:22](../apps/web/components/Header.tsx#L22) | 🟡 Header fixed; login screen still open |
 | B19 | ⚪ | Web | Watchlist and order/alert stock pickers are hard-coded to 3 stocks. The search API exists but no screen uses it. | [page.tsx:17](../apps/web/app/page.tsx#L17), [orders/page.tsx:10](../apps/web/app/orders/page.tsx#L10), [alerts/page.tsx:8](../apps/web/app/alerts/page.tsx#L8) | ✅ Fixed (G1–G3, uncommitted) |
-| B20 | ⚪ | DB | Candles are meant to live in a TimescaleDB hypertable, but nothing ever runs `create_hypertable`, so it's a plain table. Schema is managed by `ddl-auto: update` with no Flyway migrations. | [application.yml:21](../apps/api/src/main/resources/application.yml#L21) | Open |
+| B20 | ⚪ | DB | Candles are meant to live in a TimescaleDB hypertable, but nothing ever runs `create_hypertable`, so it's a plain table. Schema is managed by `ddl-auto: update` with no Flyway migrations. | [application.yml:21](../apps/api/src/main/resources/application.yml#L21) | ✅ Obsolete — candles are no longer stored (SQLite, in-memory cache) |
 | B22 | 🟠 | Prices | `QuoteCache` used a plain Jackson mapper that can't write `Instant`, so every tick publish failed ("Failed to publish tick") — live prices likely never reached the browser, and market orders drafted with ₹0 (see B14). | [QuoteCache.java:25](../apps/api/src/main/java/com/easetrading/api/marketdata/QuoteCache.java#L25) | ✅ Fixed (G1–G3, uncommitted) |
-| B23 | 🟡 | Prices | Redis `quote:{token}` isn't separated by data source, so demo prices (kept 24 h) showed as real after switching `BROKER_PROVIDER` from mock to groww. Cache was cleared by hand; needs a source-specific key. | [QuoteCache.java:34](../apps/api/src/main/java/com/easetrading/api/marketdata/QuoteCache.java#L34) | Open |
+| B23 | 🟡 | Prices | Redis `quote:{token}` isn't separated by data source, so demo prices (kept 24 h) showed as real after switching `BROKER_PROVIDER` from mock to groww. Cache was cleared by hand; needs a source-specific key. | [QuoteCache.java:34](../apps/api/src/main/java/com/easetrading/api/marketdata/QuoteCache.java#L34) | ✅ Fixed — prices live in memory and reset on restart; Redis removed |
 | B24 | 🟠 | Portfolio | When no price is available (e.g. Groww 403 on the free plan), LTP falls back to the average cost, so P&L shows ₹0.00 — looks real but isn't. Should say "price unavailable". | [BrokerPortfolioService.java](../apps/api/src/main/java/com/easetrading/api/portfolio/BrokerPortfolioService.java) | ✅ Fixed — `priceAvailable` / `pricedHoldings`; UI shows "Price unavailable" and "—" |
-| B21 | ⚪ | Config | Two config smells: `.env.example` sets `DB_URL` to the docker host `postgres`, which breaks if you run the api outside Docker; docker compose read `.env` from `infra/` (it lives at the repo root — now pass `--env-file ../.env`); and the Maven/npm Dockerfiles turn off TLS checks ([api Dockerfile:12](../apps/api/Dockerfile#L12), [web Dockerfile:9](../apps/web/Dockerfile#L9)). | — | Open |
+| B21 | ⚪ | Config | Config smells: (fixed) `DB_URL` pointed at the docker host `postgres` — gone with SQLite; docker compose read `.env` from `infra/` (it lives at the repo root — now pass `--env-file ../.env`); and the Maven/npm Dockerfiles turn off TLS checks ([api Dockerfile:12](../apps/api/Dockerfile#L12), [web Dockerfile:9](../apps/web/Dockerfile#L9)). | — | Open |
 
 ---
 
@@ -660,10 +632,10 @@ B7 (startup order), B9 (refresh candles), B14 (₹0 market orders), B10, B11, B8
 - [ ] Email / push notifications; more alert types (MACD cross, signal)
 - [ ] SL / SL-M order types, INTRADAY product, modify order
 - [x] Real holdings/positions from Groww (G3, read-only)
-- [ ] Redis caches for indicators and verdicts (`cache:ind:*`, `cache:analysis:*`)
+- [ ] In-memory caches for indicators and verdicts (no Redis needed)
 - [ ] Multi-timeframe trend (daily/weekly/monthly) in the verdict
 - [ ] Per-user broker credentials (today: one account from `.env`)
-- [ ] Flyway migrations + Timescale hypertable (B20)
+- [ ] Flyway migrations for the SQLite schema (when the schema settles)
 - [ ] Separate `apps/mcp-server` and shared types package (per LLD)
 - [ ] Run and add to the test suites (MCP tools, OrderService, CandleService)
 
@@ -671,23 +643,30 @@ B7 (startup order), B9 (refresh candles), B14 (₹0 market orders), B10, B11, B8
 
 ## 8. Reference
 
-### 8.1 Database tables (Postgres, auto-created)
+### 8.1 Where data lives
+
+**SQLite file** (`DB_PATH`, default `apps/api/easetrading.db`, git-ignored) — only what the app itself owns:
 
 | Table | Holds | Entity |
 |---|---|---|
 | `users` | email, BCrypt hash, role | [User.java](../apps/api/src/main/java/com/easetrading/api/user/User.java) |
-| `broker_credentials` | encrypted Angel One creds | [BrokerCredential.java](../apps/api/src/main/java/com/easetrading/api/broker/BrokerCredential.java) |
-| `instrument` | token ↔ symbol + Groww `tradingSymbol`/`growwSymbol`, ISIN, lot/tick size (all NSE equities in groww mode) | [Instrument.java](../apps/api/src/main/java/com/easetrading/api/instrument/Instrument.java) |
-| `price_candle` | OHLCV per token + interval + time, with `source` (MOCK/GROWW) | [Candle.java](../apps/api/src/main/java/com/easetrading/api/marketdata/Candle.java) |
-| `fundamental` | one row per stock per day | [Fundamental.java](../apps/api/src/main/java/com/easetrading/api/fundamental/Fundamental.java) |
-| `analysis_report` | every verdict shown | [AnalysisReport.java](../apps/api/src/main/java/com/easetrading/api/analysis/AnalysisReport.java) |
-| `orders` | every order + risk report | [Order.java](../apps/api/src/main/java/com/easetrading/api/order/Order.java) |
-| `position` | holdings (qty, avg price) | [Position.java](../apps/api/src/main/java/com/easetrading/api/position/Position.java) |
-| `alert` | price/RSI alerts | [Alert.java](../apps/api/src/main/java/com/easetrading/api/alert/Alert.java) |
 | `watchlist_item` | my watchlist (user, token, order) | [WatchlistItem.java](../apps/api/src/main/java/com/easetrading/api/watchlist/WatchlistItem.java) |
+| `alert` | price/RSI alerts | [Alert.java](../apps/api/src/main/java/com/easetrading/api/alert/Alert.java) |
+| `orders` | paper orders + risk report | [Order.java](../apps/api/src/main/java/com/easetrading/api/order/Order.java) |
+| `position` | paper holdings (qty, avg price) | [Position.java](../apps/api/src/main/java/com/easetrading/api/position/Position.java) |
+| `analysis_report` | every verdict shown | [AnalysisReport.java](../apps/api/src/main/java/com/easetrading/api/analysis/AnalysisReport.java) |
 | `audit_log` | ORDER_DRAFTED / CONFIRMED / CANCELLED, ALERT_TRIGGERED | [AuditLog.java](../apps/api/src/main/java/com/easetrading/api/audit/AuditLog.java) |
 
-**Redis:** `quote:{token}` (latest price, kept 24 h) and channel `chan:ticks`.
+**In memory** (rebuilt automatically, nothing to back up):
+
+| What | Refreshed | Code |
+|---|---|---|
+| Stock list (≈4,300 NSE equities) | startup + weekdays 8:30 AM IST | [InstrumentStore.java](../apps/api/src/main/java/com/easetrading/api/instrument/InstrumentStore.java) |
+| Latest price per stock | every tick | [QuoteCache.java](../apps/api/src/main/java/com/easetrading/api/marketdata/QuoteCache.java) |
+| Candles | 15 min (daily) / 1 min (intraday), max 300 series | [CandleService.java](../apps/api/src/main/java/com/easetrading/api/marketdata/CandleService.java) |
+| Fundamentals | once per stock per day | [FundamentalService.java](../apps/api/src/main/java/com/easetrading/api/fundamental/FundamentalService.java) |
+
+**At the broker (Groww), fetched live:** holdings, positions, funds, profile, prices, history.
 
 ### 8.2 Config switches (all default to safe)
 
@@ -696,7 +675,7 @@ B7 (startup order), B9 (refresh candles), B14 (₹0 market orders), B10, B11, B8
 | `BROKER_PROVIDER` | `mock` | `groww` = your real Groww account (read-only) |
 | `GROWW_AUTH_MODE` | `approval` | `approval` (key + secret) · `totp` · `token` |
 | `GROWW_API_KEY` / `GROWW_API_SECRET` / `GROWW_TOTP_SECRET` / `GROWW_ACCESS_TOKEN` | empty | Only in `.env`; single-quote values |
-| `POSTGRES_HOST_PORT` (compose) | `5432` | Change if 5432 is taken on your Mac |
+| `DB_PATH` | `easetrading.db` | Where the SQLite file lives (Docker: `/app/data/easetrading.db`) |
 | `FUNDAMENTALS_MODE` | `mock` | `auto` = Yahoo + mock backfill |
 | `TRADING_MODE` | `paper` | `live` = **blocked** until G5 |
 | `RISK_MAX_ORDER_VALUE` / `_POSITION_PCT` / `_DAILY_LOSS_LIMIT` / `_PRICE_BAND_PCT` | 100000 / 25 / 25000 / 10 | Risk engine limits |
@@ -741,6 +720,7 @@ Add one row per change, newest first.
 
 | Date | Commit | Change | Sections touched |
 |---|---|---|---|
+| 2026-11-24 | uncommitted | **Simplified storage → SQLite.** Removed Postgres, Redis and Timescale. One SQLite file holds only app-owned data (users, watchlist, alerts, paper orders/positions, analysis history, audit log). Stock list, live prices, candles and fundamentals moved to in-memory caches; broker-credential table and AES service removed. No Docker needed to run. Verified: writes + restart persistence on SQLite, Groww mode works. B20 obsolete, B23 fixed. | §2, §3, §4, §5.1, §5.2, §5.4, §5.8, §5.10, §6, §7, §8 |
 | 2026-11-24 | uncommitted | **UI pass.** New look across the app via theme tokens (navy surfaces, indigo accent, emerald/rose only for gains/losses, Inter font, sticky glass header with phone-scrollable nav). Portfolio page redesigned (summary, allocation bar, sortable holdings + phone cards, risk meter). Fixed B24 (no fake ₹0 P&L when prices are missing) on the api, Portfolio and Dashboard. | §2, §5.9, §6 |
 | 2026-11-24 | uncommitted | **First real Groww run.** Working: login (approval mode), profile, funds, holdings, positions, 4,334-stock sync. Free plan blocks all market data (LTP, OHLC, quote, candles → 403). Logged B23, B24. No code change. | §2, §6 |
 | 2026-11-24 | uncommitted | **Groww G1–G3.** Angel One removed. New broker layer (`BrokerAdapter`, Groww + mock), Groww auth/HTTP/rate-limit/mapper, instrument sync from Groww CSV, watchlists, real portfolio, dashboard/stocks/stock pages, live orders blocked. Fixed B7, B8, B9, B19, B22 (new), part of B18. Next.js → 14.2.35 (security patch). Ports bound to localhost. | §1, §2, §3, §4, §5.1, §5.2, §5.9, §5.9b, §5.11, §6, §7, §8 |
