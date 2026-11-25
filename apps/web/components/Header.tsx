@@ -12,6 +12,7 @@ const NAV = [
   { href: "/stocks", label: "Stocks" },
   { href: "/screener", label: "Screener" },
   { href: "/alerts", label: "Alerts" },
+  { href: "/settings", label: "Settings" },
 ];
 
 /**

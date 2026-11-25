@@ -7,13 +7,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriBuilder;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -34,21 +36,24 @@ public class GrowwHttp {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final RestClient http;
-    private final GrowwTokenProvider tokens;
     private final GrowwRateLimiter limiter;
 
-    public GrowwHttp(AppProperties props, GrowwTokenProvider tokens, GrowwRateLimiter limiter) {
+    public GrowwHttp(AppProperties props, GrowwRateLimiter limiter) {
         this.http = RestClient.builder()
                 .baseUrl(props.getGroww().getBaseUrl())
                 .requestFactory(timeouts())
                 .build();
-        this.tokens = tokens;
         this.limiter = limiter;
     }
 
+    /** A new login session for these credentials (one per user, plus one for market data). */
+    public GrowwSession newSession(GrowwCredentials creds) {
+        return new GrowwSession(creds, http);
+    }
+
     /** GET with query params; returns the unwrapped payload. */
-    public JsonNode get(String path, Map<String, ?> query, Category category) {
-        return send(HttpMethod.GET, b -> {
+    public JsonNode get(GrowwSession session, String path, Map<String, ?> query, Category category) {
+        return send(session, HttpMethod.GET, b -> {
             UriBuilder ub = b.path(path);
             query.forEach((k, v) -> { if (v != null) ub.queryParam(k, v); });
             return ub.build();
@@ -56,16 +61,16 @@ public class GrowwHttp {
     }
 
     /** POST with a JSON body; returns the unwrapped payload. */
-    public JsonNode post(String path, Object body, Category category) {
-        return send(HttpMethod.POST, b -> b.path(path).build(), body, category);
+    public JsonNode post(GrowwSession session, String path, Object body, Category category) {
+        return send(session, HttpMethod.POST, b -> b.path(path).build(), body, category);
     }
 
-    private JsonNode send(HttpMethod method, Function<UriBuilder, URI> uri, Object body, Category category) {
+    private JsonNode send(GrowwSession session, HttpMethod method, Function<UriBuilder, URI> uri, Object body, Category category) {
         try {
-            return once(method, uri, body, category, tokens.get());
+            return once(method, uri, body, category, session.get());
         } catch (GrowwException e) {
             // Token rejected: drop it so the next request logs in once. No retry here.
-            if (e.isAuthError()) tokens.invalidate();
+            if (e.isAuthError()) session.invalidate();
             throw e;
         }
     }
@@ -114,11 +119,15 @@ public class GrowwHttp {
         return root.has("payload") ? root.get("payload") : root;
     }
 
-    /** Fail fast instead of hanging a request thread if Groww is slow. */
-    static SimpleClientHttpRequestFactory timeouts() {
-        SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
-        f.setConnectTimeout(5_000);
-        f.setReadTimeout(20_000);
+    /**
+     * Java's HttpClient, with timeouts so a slow Groww never hangs a request thread.
+     * (The older HttpURLConnection-based factory can't read the body of a 401 reply
+     * to a POST, so a bad/unapproved key showed "I/O error" instead of Groww's reason.)
+     */
+    static JdkClientHttpRequestFactory timeouts() {
+        JdkClientHttpRequestFactory f = new JdkClientHttpRequestFactory(
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build());
+        f.setReadTimeout(Duration.ofSeconds(20));
         return f;
     }
 }

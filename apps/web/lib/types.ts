@@ -134,6 +134,9 @@ export interface Mode { provider: "MOCK" | "GROWW" | string }
 
 export interface BrokerStatus {
   provider: string;
+  /** The user has saved Groww keys (Settings). */
+  linked: boolean;
+  /** Logged in to Groww right now. */
   connected: boolean;
   tokenExpiresAt: string | null;
   message: string;
@@ -225,4 +228,13 @@ export interface StockDetail {
   tickSize: number | null;
   quote: Quote | null;
   quoteError: string | null;
+}
+
+/** The user's linked broker account, as the settings page sees it (never the keys). */
+export interface BrokerAccount {
+  provider: "MOCK" | "GROWW" | string;
+  linked: boolean;
+  authMode: "approval" | "totp" | null;
+  keyHint: string | null;
+  updatedAt: string | null;
 }

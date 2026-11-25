@@ -1,12 +1,9 @@
 package com.easetrading.api.broker.groww;
 
-import com.easetrading.api.config.AppProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.samstevens.totp.code.DefaultCodeGenerator;
 import dev.samstevens.totp.time.SystemTimeProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.nio.charset.StandardCharsets;
@@ -16,39 +13,35 @@ import java.util.HexFormat;
 import java.util.Map;
 
 /**
- * Gets and caches the Groww access token.
+ * One Groww login session: a set of credentials + the access token they produce.
  *
- * Groww tokens expire every day at 6:00 AM IST. Three ways to get one
- * (GROWW_AUTH_MODE):
- *   token    : you paste a daily access token into GROWW_ACCESS_TOKEN
+ * There is one session per connected user (their own keys, see AccountService)
+ * and one shared session for market data (the keys in .env, see GrowwAdapter).
+ *
+ * Groww tokens expire every day at 6:00 AM IST. Login modes:
  *   approval : API key + secret. We send checksum = SHA-256(secret + timestamp).
  *              Groww needs the key approved once a day on its API-keys page.
  *   totp     : API key + TOTP secret. We generate the 6-digit code ourselves.
+ *   token    : a pasted daily access token (in `secret`).
  *
  * Simple rule — no automatic retries: log in once when a token is needed. If that
- * fails (e.g. the key isn't approved today), keep the error, show it on the
- * dashboard, and don't try again until you press Reconnect (reconnect()).
+ * fails, keep the error and don't try again until reconnect() (the Reconnect button).
  * This also keeps us far below Groww's 150 logins/day limit.
  */
-@Component
-@ConditionalOnProperty(name = "easetrading.broker.provider", havingValue = "groww")
-public class GrowwTokenProvider {
+public class GrowwSession {
 
     static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
-    private final AppProperties.Groww cfg;
+    private final GrowwCredentials creds;
     private final RestClient http;
 
     private String token;
     private Instant expiresAt;
     private GrowwException lastError;
 
-    public GrowwTokenProvider(AppProperties props) {
-        this.cfg = props.getGroww();
-        this.http = RestClient.builder()
-                .baseUrl(cfg.getBaseUrl())
-                .requestFactory(GrowwHttp.timeouts())
-                .build();
+    GrowwSession(GrowwCredentials creds, RestClient http) {
+        this.creds = creds;
+        this.http = http;
     }
 
     /** A valid token. Logs in once if needed; after a failed login, throws that error until reconnect(). */
@@ -78,35 +71,34 @@ public class GrowwTokenProvider {
         get();
     }
 
+    public synchronized boolean hasError() { return lastError != null; }
     public synchronized Instant expiresAt() { return expiresAt; }
-    public synchronized String lastErrorMessage() { return lastError == null ? null : lastError.getMessage(); }
 
     // ------------------------------------------------------------------ login
 
     private void login() {
-        String mode = cfg.getAuthMode() == null ? "approval" : cfg.getAuthMode().trim().toLowerCase();
+        String mode = creds.authMode() == null ? "approval" : creds.authMode().trim().toLowerCase();
         switch (mode) {
             case "token" -> {
-                require(cfg.getAccessToken(), "GROWW_ACCESS_TOKEN");
-                token = cfg.getAccessToken().trim();
+                require(creds.secret(), "access token");
+                token = creds.secret().trim();
                 expiresAt = nextExpiry(Instant.now());
             }
             case "approval" -> {
-                require(cfg.getApiKey(), "GROWW_API_KEY");
-                require(cfg.getApiSecret(), "GROWW_API_SECRET");
+                require(creds.apiKey(), "API key");
+                require(creds.secret(), "API secret");
                 String ts = String.valueOf(Instant.now().getEpochSecond());
                 exchange(Map.of(
                         "key_type", "approval",
-                        "checksum", checksum(cfg.getApiSecret(), ts),
+                        "checksum", checksum(creds.secret(), ts),
                         "timestamp", ts));
             }
             case "totp" -> {
-                require(cfg.getApiKey(), "GROWW_API_KEY");
-                require(cfg.getTotpSecret(), "GROWW_TOTP_SECRET");
-                exchange(Map.of("key_type", "totp", "totp", totp(cfg.getTotpSecret())));
+                require(creds.apiKey(), "API key");
+                require(creds.secret(), "TOTP secret");
+                exchange(Map.of("key_type", "totp", "totp", totp(creds.secret())));
             }
-            default -> throw new GrowwException("CONFIG",
-                    "unknown GROWW_AUTH_MODE '" + mode + "' (use token | approval | totp)");
+            default -> throw new GrowwException("CONFIG", "unknown login mode '" + mode + "' (use approval | totp | token)");
         }
     }
 
@@ -116,7 +108,7 @@ public class GrowwTokenProvider {
         try {
             payload = http.post()
                     .uri("/v1/token/api/access")
-                    .header("Authorization", "Bearer " + cfg.getApiKey().trim())
+                    .header("Authorization", "Bearer " + creds.apiKey().trim())
                     .header("X-API-VERSION", "1.0")
                     .accept(MediaType.APPLICATION_JSON)
                     .contentType(MediaType.APPLICATION_JSON)
@@ -181,13 +173,13 @@ public class GrowwTokenProvider {
             long bucket = Math.floorDiv(new SystemTimeProvider().getTime(), 30);
             return new DefaultCodeGenerator().generate(base32Secret.trim(), bucket);
         } catch (Exception e) {
-            throw new GrowwException("CONFIG", "could not generate TOTP — check GROWW_TOTP_SECRET");
+            throw new GrowwException("CONFIG", "could not generate a TOTP code — check the TOTP secret");
         }
     }
 
-    private static void require(String value, String envName) {
+    private static void require(String value, String what) {
         if (value == null || value.isBlank()) {
-            throw new GrowwException("CONFIG", envName + " is not set in .env");
+            throw new GrowwException("CONFIG", "Groww " + what + " is missing");
         }
     }
 }

@@ -2,7 +2,7 @@
 
 > | | |
 > |---|---|
-> | **Status** | **P1 + P4 done** (2026-11-26): email/password + Google sign-in, every endpoint needs login. Google button needs `GOOGLE_CLIENT_ID`. Next: P2 (connect Groww per user). |
+> | **Status** | **P1 + P4 + P2 done** (2026-11-26): login (email/password + Google), every endpoint needs login, each user links their own Groww account (encrypted). Next: **P3 — real orders**. |
 > | **Goal** | Anyone can sign up, connect **their own** Groww account, see their portfolio, and **place real orders** — each user sees only their own data. |
 > | **Related** | [PROJECT_FLOW.md](PROJECT_FLOW.md) (update it as each phase lands), [GROWW_INTEGRATION_PLAN.md](GROWW_INTEGRATION_PLAN.md) |
 

@@ -1,6 +1,8 @@
 package com.easetrading.api.dashboard;
 
+import com.easetrading.api.account.AccountService;
 import com.easetrading.api.broker.BrokerAdapter;
+import com.easetrading.api.common.CurrentUserService;
 import com.easetrading.api.broker.BrokerModels.BrokerFunds;
 import com.easetrading.api.broker.BrokerModels.BrokerStatus;
 import com.easetrading.api.portfolio.BrokerPortfolioService;
@@ -25,10 +27,15 @@ public class DashboardController {
 
     private final BrokerAdapter broker;
     private final BrokerPortfolioService portfolio;
+    private final AccountService accounts;
+    private final CurrentUserService currentUser;
 
-    public DashboardController(BrokerAdapter broker, BrokerPortfolioService portfolio) {
+    public DashboardController(BrokerAdapter broker, BrokerPortfolioService portfolio,
+                               AccountService accounts, CurrentUserService currentUser) {
         this.broker = broker;
         this.portfolio = portfolio;
+        this.accounts = accounts;
+        this.currentUser = currentUser;
     }
 
     public record Mode(String provider) {}
@@ -47,7 +54,8 @@ public class DashboardController {
     public Dashboard dashboard() {
         List<String> errors = new java.util.ArrayList<>();
         Mode mode = new Mode(broker.source());
-        BrokerStatus status = broker.status();
+        var userId = currentUser.currentUserId();
+        BrokerStatus status = accounts.status(userId);
 
         BrokerFunds funds = null;
         Summary summary = null;
@@ -55,7 +63,7 @@ public class DashboardController {
 
         if (status.connected()) {
             try {
-                funds = broker.funds();
+                funds = accounts.funds(userId);
             } catch (Exception e) {
                 errors.add("Funds: " + e.getMessage());
             }

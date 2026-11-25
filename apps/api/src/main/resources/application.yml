@@ -11,8 +11,10 @@ spring:
   # analysis history, audit log, users. Everything the broker owns is fetched live.
   datasource:
     # WAL = readers never block the writer; busy_timeout = a writer waits up to 5 s
-    # for another write instead of failing with "database is locked".
-    url: jdbc:sqlite:${DB_PATH:easetrading.db}?journal_mode=WAL&busy_timeout=5000
+    # for another write instead of failing with "database is locked";
+    # IMMEDIATE = a transaction takes the write lock when it starts, so a read-then-write
+    # can't fail half-way because another connection wrote in between (SQLITE_BUSY_SNAPSHOT).
+    url: jdbc:sqlite:${DB_PATH:easetrading.db}?journal_mode=WAL&busy_timeout=5000&transaction_mode=IMMEDIATE
     driver-class-name: org.sqlite.JDBC
     hikari:
       # A few connections so one slow request can't freeze the rest (a single
@@ -43,6 +45,10 @@ easetrading:
     jwt-expiry-minutes: 10080
     # Google sign-in: the OAuth "Web client" ID from Google Cloud Console. Empty = Google button hidden.
     google-client-id: ${GOOGLE_CLIENT_ID:}
+    # Encrypts each user's saved Groww key + secret. Base64 of 32 random bytes:
+    #   openssl rand -base64 32
+    # Changing it makes saved keys unreadable (users re-enter them).
+    credential-aes-key: ${CREDENTIAL_AES_KEY:}
   broker:
     # Where prices, the stock list and your portfolio come from:
     #   "mock"  = simulated data, no credentials (default)

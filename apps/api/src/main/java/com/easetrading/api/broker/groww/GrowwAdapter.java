@@ -3,7 +3,7 @@ package com.easetrading.api.broker.groww;
 import com.easetrading.api.broker.BrokerAdapter;
 import com.easetrading.api.broker.BrokerModels.*;
 import com.easetrading.api.broker.groww.GrowwRateLimiter.Category;
-import com.easetrading.api.common.TtlCache;
+import com.easetrading.api.config.AppProperties;
 import com.easetrading.api.instrument.Instrument;
 import com.easetrading.api.marketdata.CandleDto;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -16,10 +16,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
- * The real broker: Groww Trade API (https://groww.in/trade-api/docs/curl).
+ * Market data from Groww (prices, quotes, candles) — shared by every user.
  * Active when easetrading.broker.provider = groww.
  *
- * READ-ONLY for now (phases G1–G4). Order placement is added in phase G5.
+ * Uses ONE shared session built from the keys in .env (the app owner's account).
+ * Each user's own account data (holdings, funds…) goes through their own session:
+ * see GrowwAccountClient and AccountService.
  */
 @Component
 @ConditionalOnProperty(name = "easetrading.broker.provider", havingValue = "groww")
@@ -31,61 +33,27 @@ public class GrowwAdapter implements BrokerAdapter {
     private static final int BATCH = 50;
 
     private final GrowwHttp http;
-    private final GrowwTokenProvider tokens;
+    private final GrowwSession market;
 
-    private final TtlCache<BrokerProfile> profileCache = new TtlCache<>(Duration.ofMinutes(5));
-    private final TtlCache<BrokerFunds> fundsCache = new TtlCache<>(Duration.ofSeconds(10));
-    private final TtlCache<List<BrokerHolding>> holdingsCache = new TtlCache<>(Duration.ofSeconds(5));
-    private final TtlCache<List<BrokerPosition>> positionsCache = new TtlCache<>(Duration.ofSeconds(5));
-
-    public GrowwAdapter(GrowwHttp http, GrowwTokenProvider tokens) {
+    public GrowwAdapter(GrowwHttp http, AppProperties props) {
         this.http = http;
-        this.tokens = tokens;
-        System.out.println("[Broker] GROWW — real market data and portfolio (read-only).");
+        this.market = http.newSession(GrowwCredentials.fromEnv(props.getGroww()));
+        System.out.println("[Broker] GROWW — market data via the .env account; account data per user.");
     }
 
     @Override
     public String source() { return "GROWW"; }
 
-    @Override
-    public BrokerStatus status() {
-        try {
-            BrokerProfile p = profile();
-            return new BrokerStatus("GROWW", true, tokens.expiresAt(),
-                    "Connected" + (p.clientId() != null ? " as " + mask(p.clientId()) : ""));
-        } catch (Exception e) {
-            return new BrokerStatus("GROWW", false, null, e.getMessage());
-        }
-    }
-
+    /** Retry the market-data login once, only if it had failed (e.g. key not approved yet). */
     @Override
     public void reconnect() {
-        profileCache.clear();
-        tokens.reconnect();
-    }
-
-    @Override
-    public BrokerProfile profile() {
-        return profileCache.get(() -> GrowwMapper.profile(
-                http.get("/v1/user/detail", Map.of(), Category.OTHER)));
-    }
-
-    @Override
-    public BrokerFunds funds() {
-        return fundsCache.get(() -> GrowwMapper.funds(
-                http.get("/v1/margins/detail/user", Map.of(), Category.NON_TRADING)));
-    }
-
-    @Override
-    public List<BrokerHolding> holdings() {
-        return holdingsCache.get(() -> GrowwMapper.holdings(
-                http.get("/v1/holdings/user", Map.of(), Category.NON_TRADING)));
-    }
-
-    @Override
-    public List<BrokerPosition> positions() {
-        return positionsCache.get(() -> GrowwMapper.positions(
-                http.get("/v1/positions/user", Map.of("segment", "CASH"), Category.NON_TRADING)));
+        if (market.hasError()) {
+            try {
+                market.reconnect();
+            } catch (GrowwException e) {
+                // Prices stay unavailable; the stock page shows the reason.
+            }
+        }
     }
 
     @Override
@@ -93,7 +61,7 @@ public class GrowwAdapter implements BrokerAdapter {
         Map<String, Double> out = new HashMap<>();
         for (List<Instrument> batch : batches(instruments)) {
             Map<String, String> keyToToken = keyMap(batch);
-            var raw = GrowwMapper.ltp(http.get("/v1/live-data/ltp",
+            var raw = GrowwMapper.ltp(http.get(market, "/v1/live-data/ltp",
                     Map.of("segment", "CASH", "exchange_symbols", String.join(",", keyToToken.keySet())),
                     Category.LIVE_DATA));
             raw.forEach((key, price) -> {
@@ -109,7 +77,7 @@ public class GrowwAdapter implements BrokerAdapter {
         Map<String, DayOhlc> out = new HashMap<>();
         for (List<Instrument> batch : batches(instruments)) {
             Map<String, String> keyToToken = keyMap(batch);
-            var raw = GrowwMapper.ohlc(http.get("/v1/live-data/ohlc",
+            var raw = GrowwMapper.ohlc(http.get(market, "/v1/live-data/ohlc",
                     Map.of("segment", "CASH", "exchange_symbols", String.join(",", keyToToken.keySet())),
                     Category.LIVE_DATA));
             raw.forEach((key, o) -> {
@@ -122,7 +90,7 @@ public class GrowwAdapter implements BrokerAdapter {
 
     @Override
     public BrokerQuote quote(Instrument instrument) {
-        return GrowwMapper.quote(http.get("/v1/live-data/quote", Map.of(
+        return GrowwMapper.quote(http.get(market, "/v1/live-data/quote", Map.of(
                 "exchange", instrument.getExchange(),
                 "segment", "CASH",
                 "trading_symbol", instrument.getTradingSymbol()), Category.LIVE_DATA));
@@ -138,7 +106,7 @@ public class GrowwAdapter implements BrokerAdapter {
         Instant chunkStart = from;
         while (chunkStart.isBefore(to)) {
             Instant chunkEnd = chunkStart.plus(maxChunk).isBefore(to) ? chunkStart.plus(maxChunk) : to;
-            var payload = http.get("/v1/historical/candles", Map.of(
+            var payload = http.get(market, "/v1/historical/candles", Map.of(
                     "exchange", instrument.getExchange(),
                     "segment", "CASH",
                     "groww_symbol", instrument.getGrowwSymbol(),
@@ -192,7 +160,4 @@ public class GrowwAdapter implements BrokerAdapter {
         return out;
     }
 
-    private static String mask(String id) {
-        return id.length() <= 4 ? "****" : "****" + id.substring(id.length() - 4);
-    }
 }

@@ -31,44 +31,15 @@ public class MockBrokerAdapter implements BrokerAdapter {
 
     public MockBrokerAdapter(QuoteCache quotes) {
         this.quotes = quotes;
-        System.out.println("[Broker] MOCK — simulated market data and portfolio.");
+        System.out.println("[Broker] MOCK — simulated market data; every user gets a demo account.");
     }
 
     @Override
     public String source() { return "MOCK"; }
 
     @Override
-    public BrokerStatus status() {
-        return new BrokerStatus("MOCK", true, null, "Simulated data — set BROKER_PROVIDER=groww for your real account");
-    }
-
-    @Override
     public void reconnect() {
         // Nothing to log in to.
-    }
-
-    @Override
-    public BrokerProfile profile() {
-        return new BrokerProfile("MOCK", "DEMO0001", true, true, List.of("CASH"));
-    }
-
-    @Override
-    public BrokerFunds funds() {
-        return new BrokerFunds(100_000, 0, 100_000, 0);
-    }
-
-    @Override
-    public List<BrokerHolding> holdings() {
-        return List.of(
-                new BrokerHolding("RELIANCE", "INE002A01018", 10, 1350.0, 0),
-                new BrokerHolding("TCS", "INE467B01029", 4, 3620.0, 0),
-                new BrokerHolding("HDFCBANK", "INE040A01034", 12, 1580.0, 0),
-                new BrokerHolding("INFY", "INE009A01021", 8, 1610.0, 0));
-    }
-
-    @Override
-    public List<BrokerPosition> positions() {
-        return List.of();
     }
 
     @Override

@@ -30,6 +30,9 @@ public class AppProperties {
         private String jwtSecret;
         private long jwtExpiryMinutes = 10080;
         private String googleClientId;
+        private String credentialAesKey;
+        public String getCredentialAesKey() { return credentialAesKey; }
+        public void setCredentialAesKey(String v) { this.credentialAesKey = v; }
         public String getGoogleClientId() { return googleClientId; }
         public void setGoogleClientId(String v) { this.googleClientId = v; }
         public String getJwtSecret() { return jwtSecret; }

@@ -4,7 +4,7 @@
 import type {
   Candle, Instrument, Indicators, Fundamentals, ScreenResult, Verdict,
   Alert,
-  Mode, BrokerStatus, Funds, BrokerPortfolio, Dashboard, WatchRow, StockDetail,
+  Mode, BrokerStatus, BrokerAccount, Funds, BrokerPortfolio, Dashboard, WatchRow, StockDetail,
 } from "./types";
 
 /**
@@ -192,4 +192,26 @@ export function loginWithGoogle(credential: string) {
 
 export function logout() {
   return postJson<void>(`/api/auth/logout`, {});
+}
+
+// ---- My Groww account (Settings) ----
+
+export function getBrokerAccount() {
+  return getJson<BrokerAccount>(`/api/broker/account`);
+}
+
+/** Save my Groww key + secret (stored encrypted on the server), then try to connect. */
+export async function linkBroker(authMode: "approval" | "totp", apiKey: string, secret: string) {
+  const res = await check(await fetch(`${apiBase()}/api/broker/account`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ authMode, apiKey, secret }),
+    credentials: "include",
+  }), "/api/broker/account");
+  return res.json() as Promise<BrokerStatus>;
+}
+
+export async function unlinkBroker() {
+  const res = await del(`/api/broker/account`);
+  return res.json() as Promise<BrokerAccount>;
 }

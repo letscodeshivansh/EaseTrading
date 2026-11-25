@@ -75,10 +75,10 @@ The one table to check first. Update it whenever anything changes.
 | # | Feature | Status | Notes |
 |---|---|---|---|
 | 1 | **Personal dashboard** (status, funds, P&L, today's movers, watchlist) | ✅ | New home page `/`. Mock checked; Groww untested |
-| 2 | **My Portfolio** — real Groww holdings, live P&L, today's change, allocation, risk | 🟡 | **Redesigned** (summary at top, allocation bar, sortable holdings, phone cards, risk meter). Real holdings load ✅; prices need market data, which the **free Groww plan blocks (403)** — shown honestly as "Price unavailable" |
+| 2 | **My Portfolio** — each user's own Groww holdings (P2), live P&L, today's change, allocation, risk | 🟡 | **Redesigned** (summary at top, allocation bar, sortable holdings, phone cards, risk meter). Real holdings load ✅; prices need market data, which the **free Groww plan blocks (403)** — shown honestly as "Price unavailable" |
 | 3 | **Stocks** — search the full NSE list, stock page with quote + chart | ✅ | `/stocks`, `/stocks/[token]` |
 | 4 | **Watchlist** (per user, add/remove, live prices) | ✅ | Replaces the hard-coded 3 stocks (B19) |
-| 5 | Groww connection (login, token refresh, status) | ✅ | `approval` mode verified live; token valid until 6:00 AM IST |
+| 5 | Groww connection | ✅ | **Per user (P2):** Settings → link own API key + secret (AES-GCM encrypted in `broker_account`, only `…last4` shown). One Groww session per user; one try, then Reconnect. Market data shared via the `.env` account. Verified 9/9 with a test key |
 | 6 | Stock list sync from Groww (NSE stocks, daily) | ✅ | Verified live: 4,334 NSE equities |
 | 7 | Live prices — mock feed | ✅ | Ticks now actually publish (B22 fixed) |
 | 8 | Live prices — Groww (LTP polling, 50/call, market hours) | ⛔ | **Free plan returns 403** for LTP, OHLC, quote and candles. Needs the paid Trading API plan or another price source |
@@ -557,6 +557,26 @@ flowchart TD
 | Login page | [login/page.tsx](../apps/web/app/login/page.tsx) |
 | Groww login: once, then Reconnect | [GrowwTokenProvider.java](../apps/api/src/main/java/com/easetrading/api/broker/groww/GrowwTokenProvider.java) |
 
+**Each user's Groww account (P2):**
+
+```mermaid
+flowchart LR
+    S["Settings page<br/>API key + secret"] --> L["PUT /api/broker/account"]
+    L --> E["CredentialCipher<br/>AES-256-GCM (CREDENTIAL_AES_KEY)"]
+    E --> T[("broker_account<br/>user_id · encrypted key · encrypted secret · …last4")]
+    T --> AS["AccountService<br/>one GrowwSession per user (in memory)"]
+    AS --> H["holdings · funds · positions<br/>with THAT user's login"]
+    M[".env GROWW_* account"] --> MD["GrowwAdapter: prices, quotes, candles<br/>(shared by everyone)"]
+```
+
+| Piece | Code |
+|---|---|
+| Link / unlink / status / reconnect per user | [AccountService.java](../apps/api/src/main/java/com/easetrading/api/account/AccountService.java), [BrokerController.java](../apps/api/src/main/java/com/easetrading/api/broker/BrokerController.java) |
+| Encryption of saved keys | [CredentialCipher.java](../apps/api/src/main/java/com/easetrading/api/account/CredentialCipher.java) |
+| Table | [BrokerAccount.java](../apps/api/src/main/java/com/easetrading/api/account/BrokerAccount.java) |
+| One Groww login per credentials | [GrowwSession.java](../apps/api/src/main/java/com/easetrading/api/broker/groww/GrowwSession.java), account calls in [GrowwAccountClient.java](../apps/api/src/main/java/com/easetrading/api/broker/groww/GrowwAccountClient.java) |
+| Settings page | [settings/page.tsx](../apps/web/app/settings/page.tsx) |
+
 ⚠ The MCP server calls the api without logging in, so its tools now get 401. It needs its own access token (later).
 
 ## 6. Issues found
@@ -732,6 +752,7 @@ Add one row per change, newest first.
 
 | Date | Commit | Change | Sections touched |
 |---|---|---|---|
+| 2026-11-26 | uncommitted | **P2 — each user links their own Groww account.** New `broker_account` table (AES-GCM encrypted key + secret, `CREDENTIAL_AES_KEY`), Settings page (link / replace / remove / reconnect), per-user Groww session for holdings/funds/positions; market data stays shared via `.env`. Fixes: Groww 401 replies now readable (Java HttpClient instead of HttpURLConnection — wrong keys used to show "I/O error"); SQLite `transaction_mode=IMMEDIATE` (a concurrent write failed with SQLITE_BUSY_SNAPSHOT). Spring's unused generated-password user switched off. Tests: api 30, P2 end-to-end 9/9, 168/168 parallel writes. | §2, §5.11 |
 | 2026-11-26 | uncommitted | **Simplified + login (P1 + P4).** Groww login: one try, then a **Reconnect** button (no automatic retries). Users table and tables restored as they were. **Paper trading removed** for now (orders, risk checks, paper portfolio, Orders page, MCP `prepare_order`). **Login added:** email + password and Google sign-in (`GOOGLE_CLIENT_ID`), httpOnly cookie, every endpoint needs login (B6 fixed), per-user data, 5-strike lock. Dev user removed. Tests: api 25, end-to-end 12/12. | §2, §5.11, §6 |
 | 2026-11-25 | uncommitted | **Fixed B25 + B26.** Groww login now backs off (it had exhausted the 150/day login limit → 429). SQLite deadlock fixed (dev user cached at startup; WAL, busy timeout, pool 4). New Groww key/secret in `.env`; login still blocked by Groww's 429 until its limit resets. | §2, §6 |
 | 2026-11-25 | uncommitted | **Phone access live via Tailscale Serve.** Mac + phone on one tailnet, MagicDNS + HTTPS on, `tailscale serve` routes `/` and `/api`. Fixed a 403 on saves/live prices through Tailscale by adding the Mac's exact ts.net origin to `CORS_ALLOWED_ORIGINS` in `.env` (other sites still get 403). | §2 |

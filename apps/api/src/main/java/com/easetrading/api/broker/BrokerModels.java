@@ -11,8 +11,13 @@ public final class BrokerModels {
 
     private BrokerModels() { }
 
-    /** Connection state shown on the dashboard. message explains what to do when not connected. */
-    public record BrokerStatus(String provider, boolean connected, Instant tokenExpiresAt, String message) {}
+    /**
+     * The user's broker connection, shown on the dashboard.
+     *   linked    : the user has saved Groww keys (Settings)
+     *   connected : logged in to Groww right now
+     *   message   : what's going on / what to do next
+     */
+    public record BrokerStatus(String provider, boolean linked, boolean connected, Instant tokenExpiresAt, String message) {}
 
     public record BrokerProfile(String provider, String clientId, boolean nseEnabled, boolean bseEnabled,
                                 List<String> activeSegments) {}

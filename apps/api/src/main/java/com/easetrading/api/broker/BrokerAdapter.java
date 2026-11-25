@@ -9,38 +9,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The ONE interface the rest of the app uses to talk to a broker.
- *
- * Controllers and services never know whether they're talking to Groww or to the
- * mock. Adding another broker later = one new implementation of this interface,
- * nothing else changes. The active implementation is chosen by
+ * MARKET DATA from the broker — prices, quotes, history — shared by every user.
+ * Implementations: MockBrokerAdapter (demo) or GrowwAdapter, chosen by
  * easetrading.broker.provider (mock | groww).
  *
- * Order placement is intentionally NOT here yet — it arrives in phase G5, after the
- * safety fixes. Until then the app can only READ from the broker.
+ * A user's own account data (holdings, funds, positions) is NOT here: it needs
+ * that user's own broker login — see AccountService.
  */
 public interface BrokerAdapter {
 
-    /** "MOCK" or "GROWW" — also stored on candles so data from different sources never mixes. */
+    /** "MOCK" or "GROWW". */
     String source();
 
-    /** Is the broker reachable with a valid session right now? Never throws. */
-    BrokerStatus status();
-
-    /** Try logging in again now (the "Reconnect" button). */
+    /** Retry the market-data login if it had failed (part of the Reconnect button). */
     void reconnect();
-
-    /** Account basics (client code, enabled exchanges/segments). */
-    BrokerProfile profile();
-
-    /** Cash and margin available. */
-    BrokerFunds funds();
-
-    /** Long-term holdings in the demat account. */
-    List<BrokerHolding> holdings();
-
-    /** Today's intraday / carry-forward positions. */
-    List<BrokerPosition> positions();
 
     /** Last traded price for many instruments at once. Key = instrument token. */
     Map<String, Double> ltp(List<Instrument> instruments);
@@ -51,9 +33,6 @@ public interface BrokerAdapter {
     /** Detailed quote for one instrument (day change, 52-week range, volume…). */
     BrokerQuote quote(Instrument instrument);
 
-    /**
-     * Historical candles. interval uses our names: 1m | 5m | 15m | 1h | 1d | 1w.
-     * Implementations handle any per-request range limits themselves.
-     */
+    /** Historical candles. interval: 1m | 5m | 15m | 1h | 1d | 1w. */
     List<CandleDto> candles(Instrument instrument, String interval, Instant from, Instant to);
 }

@@ -112,7 +112,12 @@ function ConnectionBanner({ data, error, onReconnected }: {
         <span className="font-medium">{b.provider === "GROWW" ? "Groww" : "Demo broker"}</span>
         <span className="text-slate-400">{b.message}</span>
       </div>
-      {!b.connected && b.provider === "GROWW" && (
+      {!b.linked && b.provider === "GROWW" && (
+        <a href="/settings" className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark">
+          Link Groww account
+        </a>
+      )}
+      {b.linked && !b.connected && b.provider === "GROWW" && (
         <button disabled={busy}
           onClick={() => { setBusy(true); reconnectBroker().finally(() => { setBusy(false); onReconnected(); }); }}
           className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50">

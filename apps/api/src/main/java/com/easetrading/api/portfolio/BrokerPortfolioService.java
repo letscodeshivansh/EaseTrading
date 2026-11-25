@@ -1,9 +1,11 @@
 package com.easetrading.api.portfolio;
 
+import com.easetrading.api.account.AccountService;
 import com.easetrading.api.broker.BrokerAdapter;
 import com.easetrading.api.broker.BrokerModels.BrokerHolding;
 import com.easetrading.api.broker.BrokerModels.DayOhlc;
 import com.easetrading.api.common.ApiException;
+import com.easetrading.api.common.CurrentUserService;
 import com.easetrading.api.instrument.Instrument;
 import com.easetrading.api.instrument.InstrumentResolver;
 import com.easetrading.api.marketdata.MarketSubscription;
@@ -26,14 +28,19 @@ import java.util.*;
 @Service
 public class BrokerPortfolioService {
 
+    private final AccountService accounts;
+    private final CurrentUserService currentUser;
     private final BrokerAdapter broker;
     private final InstrumentResolver resolver;
     private final QuoteCache quotes;
     private final MarketSubscription subscription;
 
     public BrokerPortfolioService(BrokerAdapter broker, InstrumentResolver resolver,
-                                  QuoteCache quotes, MarketSubscription subscription) {
+                                  QuoteCache quotes, MarketSubscription subscription,
+                                  AccountService accounts, CurrentUserService currentUser) {
         this.broker = broker;
+        this.accounts = accounts;
+        this.currentUser = currentUser;
         this.resolver = resolver;
         this.quotes = quotes;
         this.subscription = subscription;
@@ -66,7 +73,7 @@ public class BrokerPortfolioService {
     public PortfolioView build() {
         List<BrokerHolding> raw;
         try {
-            raw = broker.holdings();
+            raw = accounts.holdings(currentUser.currentUserId());
         } catch (Exception e) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "Could not load holdings: " + e.getMessage());
         }
