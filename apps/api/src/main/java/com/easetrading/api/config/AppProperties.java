@@ -28,7 +28,10 @@ public class AppProperties {
     /** JWT signing settings (app login). */
     public static class Security {
         private String jwtSecret;
-        private long jwtExpiryMinutes = 120;
+        private long jwtExpiryMinutes = 10080;
+        private String googleClientId;
+        public String getGoogleClientId() { return googleClientId; }
+        public void setGoogleClientId(String v) { this.googleClientId = v; }
         public String getJwtSecret() { return jwtSecret; }
         public void setJwtSecret(String v) { this.jwtSecret = v; }
         public long getJwtExpiryMinutes() { return jwtExpiryMinutes; }

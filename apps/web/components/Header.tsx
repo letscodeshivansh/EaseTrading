@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getMode } from "@/lib/api";
+import { getMe, getMode, logout, type Me } from "@/lib/api";
 import type { Mode } from "@/lib/types";
 
 const NAV = [
@@ -22,9 +22,11 @@ export default function Header() {
   const path = usePathname();
   const [mode, setMode] = useState<Mode | null>(null);
   const [checked, setChecked] = useState(false);
+  const [me, setMe] = useState<Me | null>(null);
 
   useEffect(() => {
     getMode().then(setMode).catch(() => setMode(null)).finally(() => setChecked(true));
+    getMe().then(setMe).catch(() => setMe(null)); // not logged in -> api helper goes to /login
   }, []);
 
   return (
@@ -60,6 +62,16 @@ export default function Header() {
             <Badge tone="danger">API offline</Badge>
           ) : null}
         </div>
+
+        {me && (
+          <div className="flex shrink-0 items-center gap-2 text-xs">
+            <span className="hidden max-w-[12rem] truncate text-slate-400 lg:inline" title={me.email}>{me.email}</span>
+            <button onClick={() => logout().finally(() => { window.location.href = "/login"; })}
+              className="rounded-lg border border-slate-700 px-2.5 py-1 text-slate-300 hover:border-slate-500 hover:text-slate-100">
+              Log out
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

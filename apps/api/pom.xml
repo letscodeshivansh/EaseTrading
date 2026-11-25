@@ -83,6 +83,12 @@
       <scope>runtime</scope>
     </dependency>
 
+    <!-- Verifies Google sign-in tokens (signature + issuer + audience) -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-oauth2-jose</artifactId>
+    </dependency>
+
     <!-- TOTP generation for Angel One login (time-based one-time password) -->
     <dependency>
       <groupId>dev.samstevens.totp</groupId>

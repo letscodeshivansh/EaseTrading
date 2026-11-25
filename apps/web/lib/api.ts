@@ -29,9 +29,15 @@ export function wsBase(): string {
   return apiBase().replace(/^http/, "ws");
 }
 
-/** Throws an Error carrying the api's own message ({message: "..."}) when there is one. */
+/**
+ * Throws an Error carrying the api's own message ({message: "..."}) when there is one.
+ * 401 = not logged in: go to the login page (unless we're already on it).
+ */
 async function check(res: Response, path: string): Promise<Response> {
   if (res.ok) return res;
+  if (res.status === 401 && typeof window !== "undefined" && window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
   let message = `API ${path} failed: ${res.status}`;
   try {
     const body = await res.json();
@@ -43,7 +49,8 @@ async function check(res: Response, path: string): Promise<Response> {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await check(await fetch(`${apiBase()}${path}`, { cache: "no-store" }), path);
+  // credentials: "include" sends the httpOnly login cookie with every request.
+  const res = await check(await fetch(`${apiBase()}${path}`, { cache: "no-store", credentials: "include" }), path);
   return res.json() as Promise<T>;
 }
 
@@ -53,8 +60,10 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     cache: "no-store",
+    credentials: "include",
   }), path);
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 /** Historical candles for the chart. */
@@ -90,7 +99,7 @@ export function analyze(token: string, strategy: string) {
 // ---- Alerts ----
 
 async function del(path: string): Promise<Response> {
-  return check(await fetch(`${apiBase()}${path}`, { method: "DELETE" }), path);
+  return check(await fetch(`${apiBase()}${path}`, { method: "DELETE", credentials: "include" }), path);
 }
 
 export function listAlerts() {
@@ -152,4 +161,35 @@ export function addToWatchlist(token: string) {
 export async function removeFromWatchlist(token: string) {
   const res = await del(`/api/watchlist/${token}`);
   return res.json() as Promise<WatchRow[]>;
+}
+
+// ---- Login ----
+
+export interface Me { email: string; role: string }
+
+/** Login page setup: the Google client ID (null = Google sign-in not set up). */
+export function getAuthConfig() {
+  return getJson<{ googleClientId: string | null }>(`/api/auth/config`);
+}
+
+/** Who is logged in (redirects to /login if nobody). */
+export function getMe() {
+  return getJson<Me>(`/api/auth/me`);
+}
+
+export function register(email: string, password: string) {
+  return postJson<Me>(`/api/auth/register`, { email, password });
+}
+
+export function login(email: string, password: string) {
+  return postJson<Me>(`/api/auth/login`, { email, password });
+}
+
+/** Google sign-in: send Google's signed credential; the api sets the login cookie. */
+export function loginWithGoogle(credential: string) {
+  return postJson<Me>(`/api/auth/google`, { credential });
+}
+
+export function logout() {
+  return postJson<void>(`/api/auth/logout`, {});
 }

@@ -4,22 +4,24 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-/**
- * Request/response shapes for authentication. Java "records" are immutable data
- * carriers — perfect for DTOs. Validation annotations reject bad input early.
- */
+/** Request/response shapes for login. The login token itself travels in a cookie, never in JSON. */
 public class AuthDtos {
 
     public record RegisterRequest(
-            @Email @NotBlank String email,
+            @Email(message = "Enter a valid email") @NotBlank String email,
             @NotBlank @Size(min = 8, message = "Password must be at least 8 characters") String password
     ) {}
 
     public record LoginRequest(
-            @Email @NotBlank String email,
+            @Email(message = "Enter a valid email") @NotBlank String email,
             @NotBlank String password
     ) {}
 
-    /** Returned on successful login/register. The token goes in the Authorization header. */
-    public record AuthResponse(String token, String email, String role) {}
+    public record GoogleRequest(@NotBlank String credential) {}
+
+    /** Who is logged in. */
+    public record Me(String email, String role) {}
+
+    /** What the login page needs: the Google client ID (null = hide the Google button). */
+    public record AuthConfig(String googleClientId) {}
 }

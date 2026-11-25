@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.easetrading.api.user.AuthController;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -16,8 +17,8 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Runs once per request. If the request carries a valid "Authorization: Bearer <jwt>"
- * header, it loads the user id + role into Spring Security's context so the rest of
+ * Runs once per request. If the request carries a valid login token (the et_session
+ * cookie, or an "Authorization: Bearer" header), it loads the user id + role into Spring Security's context so the rest of
  * the app knows who is calling. If there's no token (or it's invalid), the request
  * simply continues unauthenticated and protected endpoints will reject it.
  */
@@ -36,9 +37,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     @NonNull FilterChain chain)
             throws ServletException, IOException {
 
-        String header = request.getHeader("Authorization");
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
+        String token = tokenFrom(request);
+        if (token != null) {
             try {
                 String userId = jwtService.extractUserId(token);
                 String role = jwtService.extractRole(token);
@@ -52,5 +52,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             }
         }
         chain.doFilter(request, response);
+    }
+
+    /** The login cookie (browser), or an "Authorization: Bearer" header (scripts/tools). */
+    private static String tokenFrom(HttpServletRequest request) {
+        if (request.getCookies() != null) {
+            for (jakarta.servlet.http.Cookie c : request.getCookies()) {
+                if (AuthController.COOKIE.equals(c.getName()) && !c.getValue().isBlank()) return c.getValue();
+            }
+        }
+        String header = request.getHeader("Authorization");
+        return header != null && header.startsWith("Bearer ") ? header.substring(7) : null;
     }
 }

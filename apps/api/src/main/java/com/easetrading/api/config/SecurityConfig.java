@@ -3,8 +3,6 @@ package com.easetrading.api.config;
 import com.easetrading.api.security.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -21,10 +19,8 @@ import java.util.List;
  * Central security rules for the API.
  *
  *  - Stateless sessions (no server-side session; the JWT carries identity).
- *  - Public endpoints: login/register, health, the live stream, and (for Prompt 1
- *    convenience) the read-only market-data endpoints so the dashboard works
- *    immediately. These will be tightened to require auth in later prompts.
- *  - Everything else requires a valid JWT.
+ *  - Public: only login/register/Google sign-in and the health check.
+ *  - Everything else (portfolio, watchlist, alerts, prices, live stream…) needs login.
  *  - Passwords are hashed with BCrypt (never stored in plain text).
  */
 @Configuration
@@ -46,34 +42,18 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .cors(cors -> cors.configurationSource(corsSource()))
-            // CSRF protection is for cookie-based sessions; we use bearer tokens, so disable it.
+            // The login cookie is SameSite=Lax, so other websites can't send it with their
+            // POST/DELETE requests; together with the strict CORS list below, that covers CSRF.
             .csrf(csrf -> csrf.disable())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // Everything needs a logged-in user except the login endpoints and the health check.
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                    "/api/auth/**",
-                    "/api/health",
-                    "/api/stream/**",
-                    "/api/instruments/**",
-                    "/api/quotes/**",
-                    "/api/candles/**",
-                    "/api/indicators/**",
-                    "/api/fundamentals/**",
-                    "/api/screener/**",
-                    "/api/analysis/**",
-                    // Portfolio/alert endpoints resolve a dev user when no JWT is
-                    // present (single-user dev). In production, remove these from the
-                    // permit list so they require authentication.
-                    "/api/portfolio/**",
-                    "/api/alerts/**",
-                    // Read-only broker/dashboard/watchlist views. Same dev-user rule as
-                    // above: keep the api local-only until login is added (B6).
-                    "/api/broker/**",
-                    "/api/dashboard",
-                    "/api/dashboard/**",
-                    "/api/watchlist/**"
-                ).permitAll()
+                .requestMatchers("/api/auth/**", "/api/health").permitAll()
                 .anyRequest().authenticated())
+            // Not logged in -> plain 401 (the web app then shows the login page).
+            .exceptionHandling(e -> e.authenticationEntryPoint(
+                    new org.springframework.security.web.authentication.HttpStatusEntryPoint(
+                            org.springframework.http.HttpStatus.UNAUTHORIZED)))
             // Our JWT filter runs before Spring's username/password filter.
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -98,10 +78,5 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration c) throws Exception {
-        return c.getAuthenticationManager();
     }
 }

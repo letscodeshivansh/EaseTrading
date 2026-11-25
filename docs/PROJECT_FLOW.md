@@ -88,11 +88,11 @@ The one table to check first. Update it whenever anything changes.
 | 12 | Screener | ✅ | Universe now = whole synced stock list (slow in `auto` mode) |
 | 13 | AI analysis (grounded verdict) | ✅ | Moved to the stock page. Claude path still broken (B1, B2) |
 | 14 | MCP server | 🟡 | Unchanged — B3, B4, B5 open (after basics) |
-| 15 | Paper orders (draft → risk → confirm) | 🟡 | Works; B13, B14, B15 open |
-| 16 | Live orders | ⛔ | **Deliberately blocked** until phase G5 |
-| 17 | Paper portfolio | ✅ | Now a tab: Portfolio → "Paper trades" |
+| 15 | Paper orders | ⏸ | **Removed for now** (2026-11-26) — real orders come in plan P3 ([MULTI_USER_PLAN.md](MULTI_USER_PLAN.md)). Old `orders`/`position` tables left in the DB, unused |
+| 16 | Real orders through Groww | ❌ | Plan P3: review → confirm → Groww, per user |
+| 17 | Paper portfolio | ⏸ | Removed with paper orders |
 | 18 | Alerts | 🟡 | Stock picker uses watchlist; still no email/push; B17 |
-| 19 | Login / auth | ❌ | Still open to anyone who reaches the api (B6) — keep local only |
+| 19 | **Login** — email + password, Google sign-in | ✅ | `/login` page; login cookie (httpOnly, 7 days); **every endpoint needs login**; each user sees only their own watchlist/alerts; 5 wrong passwords → 15-min lock. Google button appears once `GOOGLE_CLIENT_ID` is set. Verified: 12/12 end-to-end checks |
 | 20 | Header shows real data source + trading mode | ✅ | Part of B18 fixed |
 | 21 | Run locally — **no Docker, no DB server** | ✅ | One SQLite file (`apps/api/easetrading.db`); Docker Compose optional (api + analysis + web only). api and web listen on **127.0.0.1 only** |
 | 21b | **Open on my phone** (Tailscale Serve, private to my devices) | ✅ | `https://b2bmlblr0254.taile29b55.ts.net` (tailnet only): `/` → web `127.0.0.1:3000`, `/api` → api `127.0.0.1:8080`. Tested: pages, api, saves, live-price WebSocket. Needs the Mac on, both apps running, Tailscale connected. Stop with `tailscale serve reset` |
@@ -530,25 +530,34 @@ Code: [AlertService.java:70](../apps/api/src/main/java/com/easetrading/api/alert
 
 ```mermaid
 flowchart TD
-    subgraph App["App users (unchanged)"]
-      NB["Browser sends no token (no login screen, B18)"] --> DU["dev@easetrading.local user"]
+    subgraph Login["App login (P1 + P4)"]
+      LP["/login page"] --> EP["Email + password<br/>POST /api/auth/login or /register"]
+      LP --> GB["Continue with Google<br/>(Google's button, needs GOOGLE_CLIENT_ID)"]
+      GB --> GV["POST /api/auth/google<br/>api checks Google's signature, issuer,<br/>audience = our client ID, verified email"]
+      EP --> CK["Login cookie et_session<br/>(httpOnly, SameSite=Lax, 7 days)"]
+      GV --> CK
+      CK --> F["JwtAuthFilter on every request"]
+      F --> U["CurrentUserService → user id<br/>watchlist/alerts scoped to it"]
+      F -. "no cookie" .-> X["401 → web app opens /login"]
     end
-    subgraph Groww["Groww session (new)"]
-      ENV[".env (git-ignored, chmod 600)<br/>GROWW_AUTH_MODE + key/secret/token"] --> TP["GrowwTokenProvider"]
-      TP --> M{"mode"}
-      M -- approval --> AP["POST /v1/token/api/access<br/>checksum = SHA-256(secret + timestamp)"]
-      M -- totp --> TO["POST /v1/token/api/access<br/>6-digit TOTP"]
-      M -- token --> TK["use pasted token"]
-      AP & TO & TK --> C["Cache token until 6:00 AM IST"]
-      C --> H["GrowwHttp: Bearer + X-API-VERSION<br/>rate limit · unwrap · re-login once on GA005/401"]
+    subgraph Groww["Groww session (one account from .env for now; per user in P2)"]
+      ENV[".env: GROWW_AUTH_MODE + key/secret/token"] --> TP["GrowwTokenProvider"]
+      TP --> C["Log in once → token until 6:00 AM IST<br/>failed? keep the error, no retries"]
+      C --> RC["Dashboard: Reconnect button<br/>POST /api/broker/reconnect"]
     end
 ```
 
 | Piece | Code |
 |---|---|
-| Token modes, expiry, throttled retries (150/day limit) | [GrowwTokenProvider.java](../apps/api/src/main/java/com/easetrading/api/broker/groww/GrowwTokenProvider.java) |
-| Every Groww call | [GrowwHttp.java](../apps/api/src/main/java/com/easetrading/api/broker/groww/GrowwHttp.java), [GrowwRateLimiter.java](../apps/api/src/main/java/com/easetrading/api/broker/groww/GrowwRateLimiter.java) |
-| `/api/broker/status`, `/profile`, `/funds` (credentials never go over HTTP) | [BrokerController.java](../apps/api/src/main/java/com/easetrading/api/broker/BrokerController.java) |
+| Login endpoints + cookie | [AuthController.java](../apps/api/src/main/java/com/easetrading/api/user/AuthController.java) |
+| Sign up / log in / lock after 5 wrong passwords / Google accounts | [AuthService.java](../apps/api/src/main/java/com/easetrading/api/user/AuthService.java) |
+| Google token check | [GoogleTokenVerifier.java](../apps/api/src/main/java/com/easetrading/api/user/GoogleTokenVerifier.java) |
+| Cookie → user on every request | [JwtAuthFilter.java](../apps/api/src/main/java/com/easetrading/api/security/JwtAuthFilter.java), [CurrentUserService.java](../apps/api/src/main/java/com/easetrading/api/common/CurrentUserService.java) |
+| Only `/api/auth/**` and `/api/health` are open | [SecurityConfig.java](../apps/api/src/main/java/com/easetrading/api/config/SecurityConfig.java) |
+| Login page | [login/page.tsx](../apps/web/app/login/page.tsx) |
+| Groww login: once, then Reconnect | [GrowwTokenProvider.java](../apps/api/src/main/java/com/easetrading/api/broker/groww/GrowwTokenProvider.java) |
+
+⚠ The MCP server calls the api without logging in, so its tools now get 401. It needs its own access token (later).
 
 ## 6. Issues found
 
@@ -562,7 +571,7 @@ When fixed, change the Status to ✅ and add the commit.
 | B3 | 🟠 | MCP | `run_screener` builds its stock list from `/api/instruments/search?q=`. The api returns an **empty list** for a blank search, so the screen covers 0 stocks. Use `POST /api/screener/run` instead. | [mcp_server.py:75](../apps/analysis/mcp_server.py#L75), [InstrumentController.java:26](../apps/api/src/main/java/com/easetrading/api/instrument/InstrumentController.java#L26) | Open |
 | B4 | 🟠 | MCP | No tool turns a stock name into its token, yet most tools need the token. | [mcp_server.py](../apps/analysis/mcp_server.py) | Open |
 | B5 | 🟠 | MCP | The MCP server isn't registered in Claude Desktop or Claude Code, has no run guide, and its packages (`mcp`, `httpx`) aren't in the Docker image. | — | Open |
-| B6 | 🔴 | Security | `/api/orders/**`, `/api/portfolio/**` and `/api/alerts/**` are open to everyone (`permitAll`) and fall back to the dev user. On the public Render URL, anyone could create **and confirm** orders, which means real money if `TRADING_MODE=live`. CORS also trusts every `*.vercel.app` site with credentials, and the WebSocket accepts any origin. | [SecurityConfig.java:52](../apps/api/src/main/java/com/easetrading/api/config/SecurityConfig.java#L52), [SecurityConfig.java:37](../apps/api/src/main/java/com/easetrading/api/config/SecurityConfig.java#L37), [WebSocketConfig.java:26](../apps/api/src/main/java/com/easetrading/api/config/WebSocketConfig.java#L26) | Open |
+| B6 | 🔴 | Security | `/api/orders/**`, `/api/portfolio/**` and `/api/alerts/**` are open to everyone (`permitAll`) and fall back to the dev user. On the public Render URL, anyone could create **and confirm** orders, which means real money if `TRADING_MODE=live`. CORS also trusts every `*.vercel.app` site with credentials, and the WebSocket accepts any origin. | [SecurityConfig.java:52](../apps/api/src/main/java/com/easetrading/api/config/SecurityConfig.java#L52), [SecurityConfig.java:37](../apps/api/src/main/java/com/easetrading/api/config/SecurityConfig.java#L37), [WebSocketConfig.java:26](../apps/api/src/main/java/com/easetrading/api/config/WebSocketConfig.java#L26) | ✅ Fixed (P1) — every endpoint needs login; CORS kept strict |
 | B7 | 🟠 | Prices | On a brand-new DB the default 3 stocks are subscribed *before* the stocks are seeded, so nothing streams until a restart. This hits the first Render deploy. | [MarketSubscription.java:31](../apps/api/src/main/java/com/easetrading/api/marketdata/MarketSubscription.java#L31), [SymbolMasterSeeder.java:29](../apps/api/src/main/java/com/easetrading/api/instrument/SymbolMasterSeeder.java#L29) | ✅ Fixed (G1–G3, uncommitted) |
 | B8 | ⚪ | Chart (mock) | Fake history starts at a random ₹1000–3500 but live ticks start at fixed prices (e.g. RELIANCE ₹1420), so the last candle jumps with a huge wick. | [CandleService.java:82](../apps/api/src/main/java/com/easetrading/api/marketdata/CandleService.java#L82), [MockMarketFeed.java:53](../apps/api/src/main/java/com/easetrading/api/marketdata/MockMarketFeed.java#L53) | ✅ Fixed (G1–G3, uncommitted) |
 | B9 | 🟠 | Candles | Once any candles exist for a stock, no newer candles are ever fetched. In live mode the chart and every indicator freeze on the first day's data. Asking for more days than the first fetch also returns less. | [CandleService.java:49](../apps/api/src/main/java/com/easetrading/api/marketdata/CandleService.java#L49) | ✅ Fixed (G1–G3, uncommitted) |
@@ -723,6 +732,7 @@ Add one row per change, newest first.
 
 | Date | Commit | Change | Sections touched |
 |---|---|---|---|
+| 2026-11-26 | uncommitted | **Simplified + login (P1 + P4).** Groww login: one try, then a **Reconnect** button (no automatic retries). Users table and tables restored as they were. **Paper trading removed** for now (orders, risk checks, paper portfolio, Orders page, MCP `prepare_order`). **Login added:** email + password and Google sign-in (`GOOGLE_CLIENT_ID`), httpOnly cookie, every endpoint needs login (B6 fixed), per-user data, 5-strike lock. Dev user removed. Tests: api 25, end-to-end 12/12. | §2, §5.11, §6 |
 | 2026-11-25 | uncommitted | **Fixed B25 + B26.** Groww login now backs off (it had exhausted the 150/day login limit → 429). SQLite deadlock fixed (dev user cached at startup; WAL, busy timeout, pool 4). New Groww key/secret in `.env`; login still blocked by Groww's 429 until its limit resets. | §2, §6 |
 | 2026-11-25 | uncommitted | **Phone access live via Tailscale Serve.** Mac + phone on one tailnet, MagicDNS + HTTPS on, `tailscale serve` routes `/` and `/api`. Fixed a 403 on saves/live prices through Tailscale by adding the Mac's exact ts.net origin to `CORS_ALLOWED_ORIGINS` in `.env` (other sites still get 403). | §2 |
 | 2026-11-24 | uncommitted | **Phone access prep.** api binds to `127.0.0.1` (`SERVER_ADDRESS`; Docker uses `0.0.0.0`), web `npm start` binds to `127.0.0.1`. Web app picks the api address at runtime (`NEXT_PUBLIC_API_BASE_URL` → `:3000`→`:8080` → same origin), so one build works locally, through Tailscale Serve and on Vercel. Verified: not reachable from the Wi-Fi address; localhost works. | §2 |

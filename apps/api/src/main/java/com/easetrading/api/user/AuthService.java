@@ -1,54 +1,74 @@
 package com.easetrading.api.user;
 
 import com.easetrading.api.common.ApiException;
-import com.easetrading.api.security.JwtService;
-import com.easetrading.api.user.AuthDtos.AuthResponse;
-import com.easetrading.api.user.AuthDtos.LoginRequest;
-import com.easetrading.api.user.AuthDtos.RegisterRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
- * Business logic for sign-up and login. Controllers stay thin; all the rules
- * (hashing, duplicate checks, token issuing) live here so they are easy to test.
+ * Sign up, log in (email + password) and Google sign-in.
+ *
+ * After 5 wrong passwords for an email, that email is locked for 15 minutes —
+ * enough to stop password guessing without bothering real users.
  */
 @Service
 public class AuthService {
 
+    private static final int MAX_FAILURES = 5;
+    private static final Duration LOCK = Duration.ofMinutes(15);
+
+    private record Failures(int count, Instant lockedUntil) {}
+
     private final UserRepository users;
     private final PasswordEncoder encoder;
-    private final JwtService jwt;
+    private final GoogleTokenVerifier google;
+    private final Map<String, Failures> failures = new ConcurrentHashMap<>();
 
-    public AuthService(UserRepository users, PasswordEncoder encoder, JwtService jwt) {
+    public AuthService(UserRepository users, PasswordEncoder encoder, GoogleTokenVerifier google) {
         this.users = users;
         this.encoder = encoder;
-        this.jwt = jwt;
+        this.google = google;
     }
 
-    /** Creates a new account and returns a session token. */
-    public AuthResponse register(RegisterRequest req) {
-        if (users.existsByEmail(req.email())) {
-            throw new ApiException(HttpStatus.CONFLICT, "An account with this email already exists");
+    public User register(String email, String password) {
+        String e = email.trim().toLowerCase();
+        if (users.existsByEmail(e)) {
+            throw new ApiException(HttpStatus.CONFLICT, "An account with this email already exists — log in instead");
         }
-        User user = new User(req.email(), encoder.encode(req.password()));
-        users.save(user);
-        return toResponse(user);
+        return users.save(new User(e, encoder.encode(password)));
     }
 
-    /** Verifies credentials and returns a session token. */
-    public AuthResponse login(LoginRequest req) {
-        User user = users.findByEmail(req.email())
-                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
-
-        if (!encoder.matches(req.password(), user.getPasswordHash())) {
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+    public User login(String email, String password) {
+        String e = email.trim().toLowerCase();
+        Failures f = failures.get(e);
+        if (f != null && f.lockedUntil() != null && Instant.now().isBefore(f.lockedUntil())) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "Too many wrong passwords — try again in 15 minutes");
         }
-        return toResponse(user);
+        User user = users.findByEmail(e).orElse(null);
+        if (user == null || !encoder.matches(password, user.getPasswordHash())) {
+            int count = f == null ? 1 : f.count() + 1;
+            failures.put(e, new Failures(count, count >= MAX_FAILURES ? Instant.now().plus(LOCK) : null));
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Wrong email or password");
+        }
+        failures.remove(e);
+        return user;
     }
 
-    private AuthResponse toResponse(User user) {
-        String token = jwt.issueToken(user.getId().toString(), user.getRole().name());
-        return new AuthResponse(token, user.getEmail(), user.getRole().name());
+    /** Google sign-in: log in, or create the account on first use (no password needed). */
+    public User loginWithGoogle(String credential) {
+        String email = google.verifiedEmail(credential);
+        return users.findByEmail(email).orElseGet(() ->
+                // Random password: a Google-only account can't be logged into with a password.
+                users.save(new User(email, encoder.encode(UUID.randomUUID().toString()))));
+    }
+
+    public User get(UUID id) {
+        return users.findById(id).orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Please log in"));
     }
 }
