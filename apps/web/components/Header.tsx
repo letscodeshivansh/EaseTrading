@@ -10,14 +10,13 @@ const NAV = [
   { href: "/", label: "Dashboard" },
   { href: "/portfolio", label: "Portfolio" },
   { href: "/stocks", label: "Stocks" },
-  { href: "/orders", label: "Orders" },
   { href: "/screener", label: "Screener" },
   { href: "/alerts", label: "Alerts" },
 ];
 
 /**
  * Sticky top bar: logo, pill navigation (scrolls sideways on phones) and the REAL
- * data source + trading mode from the api.
+ * data source (Groww or demo) from the api.
  */
 export default function Header() {
   const path = usePathname();
@@ -54,14 +53,9 @@ export default function Header() {
 
         <div className="hidden shrink-0 items-center gap-2 text-xs md:flex">
           {mode ? (
-            <>
-              <Badge tone={mode.provider === "GROWW" ? "brand" : "neutral"}>
-                {mode.provider === "GROWW" ? "Groww" : "Demo data"}
-              </Badge>
-              <Badge tone={mode.trading === "LIVE" ? "danger" : "neutral"}>
-                {mode.trading === "LIVE" ? "LIVE trading" : "Paper trading"}
-              </Badge>
-            </>
+            <Badge tone={mode.provider === "GROWW" ? "brand" : "neutral"}>
+              {mode.provider === "GROWW" ? "Groww" : "Demo data"}
+            </Badge>
           ) : checked ? (
             <Badge tone="danger">API offline</Badge>
           ) : null}

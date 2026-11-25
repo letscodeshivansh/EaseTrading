@@ -3,7 +3,6 @@ package com.easetrading.api.dashboard;
 import com.easetrading.api.broker.BrokerAdapter;
 import com.easetrading.api.broker.BrokerModels.BrokerFunds;
 import com.easetrading.api.broker.BrokerModels.BrokerStatus;
-import com.easetrading.api.config.AppProperties;
 import com.easetrading.api.portfolio.BrokerPortfolioService;
 import com.easetrading.api.portfolio.BrokerPortfolioService.HoldingView;
 import com.easetrading.api.portfolio.BrokerPortfolioService.Summary;
@@ -26,30 +25,28 @@ public class DashboardController {
 
     private final BrokerAdapter broker;
     private final BrokerPortfolioService portfolio;
-    private final AppProperties props;
 
-    public DashboardController(BrokerAdapter broker, BrokerPortfolioService portfolio, AppProperties props) {
+    public DashboardController(BrokerAdapter broker, BrokerPortfolioService portfolio) {
         this.broker = broker;
         this.portfolio = portfolio;
-        this.props = props;
     }
 
-    public record Mode(String provider, String trading) {}
+    public record Mode(String provider) {}
 
     public record Dashboard(Mode mode, BrokerStatus broker, BrokerFunds funds, Summary summary,
                             List<HoldingView> topGainers, List<HoldingView> topLosers,
                             List<String> errors) {}
 
-    /** Cheap call for the header badge on every page: which broker, PAPER or LIVE. */
+    /** Cheap call for the header badge on every page: which broker (GROWW or MOCK). */
     @GetMapping("/api/dashboard/mode")
     public Mode mode() {
-        return new Mode(broker.source(), props.getTrading().isLive() ? "LIVE" : "PAPER");
+        return new Mode(broker.source());
     }
 
     @GetMapping("/api/dashboard")
     public Dashboard dashboard() {
         List<String> errors = new java.util.ArrayList<>();
-        Mode mode = new Mode(broker.source(), props.getTrading().isLive() ? "LIVE" : "PAPER");
+        Mode mode = new Mode(broker.source());
         BrokerStatus status = broker.status();
 
         BrokerFunds funds = null;

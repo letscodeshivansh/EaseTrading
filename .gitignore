@@ -28,3 +28,4 @@ apps/web/tsconfig.tsbuildinfo
 *.db-journal
 *.db-wal
 *.db-shm
+apps/api/backup/

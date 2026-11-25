@@ -6,7 +6,7 @@ import Header from "@/components/Header";
 import Stat from "@/components/Stat";
 import Watchlist from "@/components/Watchlist";
 import { useLiveQuotes } from "@/hooks/useLiveQuotes";
-import { getDashboard } from "@/lib/api";
+import { getDashboard, reconnectBroker } from "@/lib/api";
 import { inr, pct, signedInr, tone } from "@/lib/format";
 import type { Dashboard, HoldingView } from "@/lib/types";
 
@@ -38,7 +38,7 @@ export default function DashboardPage() {
       <main className="mx-auto grid w-full max-w-7xl flex-1 gap-4 p-4 lg:grid-cols-[1fr_320px]">
         <div className="flex min-w-0 flex-col gap-4">
           {/* Connection */}
-          <ConnectionBanner data={data} error={error} />
+          <ConnectionBanner data={data} error={error} onReconnected={() => getDashboard().then(setData).catch(() => {})} />
 
           {/* Portfolio summary */}
           <section>
@@ -91,7 +91,10 @@ export default function DashboardPage() {
   );
 }
 
-function ConnectionBanner({ data, error }: { data: Dashboard | null; error: string | null }) {
+function ConnectionBanner({ data, error, onReconnected }: {
+  data: Dashboard | null; error: string | null; onReconnected: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
   if (error) {
     return (
       <div className="rounded-lg border border-down/40 bg-down/10 p-3 text-sm text-down">
@@ -109,6 +112,13 @@ function ConnectionBanner({ data, error }: { data: Dashboard | null; error: stri
         <span className="font-medium">{b.provider === "GROWW" ? "Groww" : "Demo broker"}</span>
         <span className="text-slate-400">{b.message}</span>
       </div>
+      {!b.connected && b.provider === "GROWW" && (
+        <button disabled={busy}
+          onClick={() => { setBusy(true); reconnectBroker().finally(() => { setBusy(false); onReconnected(); }); }}
+          className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
+          {busy ? "Connecting…" : "Reconnect"}
+        </button>
+      )}
       {b.tokenExpiresAt && (
         <span className="text-xs text-slate-500">
           session until {new Date(b.tokenExpiresAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })}

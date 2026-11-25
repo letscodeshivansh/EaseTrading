@@ -59,6 +59,12 @@ public class GrowwAdapter implements BrokerAdapter {
     }
 
     @Override
+    public void reconnect() {
+        profileCache.clear();
+        tokens.reconnect();
+    }
+
+    @Override
     public BrokerProfile profile() {
         return profileCache.get(() -> GrowwMapper.profile(
                 http.get("/v1/user/detail", Map.of(), Category.OTHER)));

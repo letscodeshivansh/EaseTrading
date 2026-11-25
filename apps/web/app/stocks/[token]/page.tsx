@@ -83,9 +83,6 @@ export default function StockPage() {
             className={`rounded px-3 py-1.5 text-sm ${watched ? "bg-brand/20 text-brand-light" : "bg-slate-800 text-slate-200 hover:bg-slate-700"}`}>
             {watched ? "★ In watchlist" : "☆ Add to watchlist"}
           </button>
-          <a href={`/orders?token=${token}`} className="rounded bg-slate-800 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-700">
-            Trade (paper)
-          </a>
         </div>
 
         {stock?.quoteError && (

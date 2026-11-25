@@ -4,12 +4,14 @@ import com.easetrading.api.broker.BrokerModels.BrokerFunds;
 import com.easetrading.api.broker.BrokerModels.BrokerProfile;
 import com.easetrading.api.broker.BrokerModels.BrokerStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Broker account info (read-only).
- *   GET /api/broker/status   -> connected? token expiry, what to do if not connected
+ *   GET  /api/broker/status    -> connected? token expiry, what to do if not connected
+ *   POST /api/broker/reconnect -> log in again now (after approving the key on Groww)
  *   GET /api/broker/profile  -> client code, enabled exchanges/segments
  *   GET /api/broker/funds    -> available cash and margin
  *
@@ -27,6 +29,16 @@ public class BrokerController {
 
     @GetMapping("/status")
     public BrokerStatus status() {
+        return broker.status();
+    }
+
+    @PostMapping("/reconnect")
+    public BrokerStatus reconnect() {
+        try {
+            broker.reconnect();
+        } catch (Exception ignored) {
+            // The status below carries the reason.
+        }
         return broker.status();
     }
 

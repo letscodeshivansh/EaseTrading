@@ -99,40 +99,9 @@ export interface Verdict {
   source: "claude" | "grounded" | "insufficient_data";
 }
 
-// ---- Prompt 4: orders, portfolio, alerts ----
+// ---- Portfolio risk, alerts ----
 
-export interface Order {
-  id: string;
-  token: string;
-  symbol: string;
-  side: "BUY" | "SELL";
-  type: "MARKET" | "LIMIT";
-  qty: number;
-  price: number;
-  filledPrice: number;
-  status: "DRAFT" | "PENDING_CONFIRM" | "SUBMITTED" | "OPEN" | "FILLED" | "REJECTED" | "CANCELLED";
-  brokerOrderId: string | null;
-  riskPassed: boolean;
-  realizedPnl: number;
-  createdAt: string;
-}
-
-export interface RiskCheck { name: string; passed: boolean; detail: string }
-export interface RiskReport { passed: boolean; checks: RiskCheck[] }
-export interface DraftResult { order: Order; risk: RiskReport }
-
-/** Holdings built from paper trades placed in this app (GET /api/portfolio/paper). */
-export interface PaperHolding {
-  token: string; symbol: string; qty: number; avgPrice: number; ltp: number;
-  invested: number; marketValue: number; pnl: number; pnlPct: number; allocationPct: number;
-}
 export interface RiskView { holdings: number; largestPositionPct: number; concentrationIndex: number; assessment: string }
-export interface PaperPortfolio {
-  holdings: PaperHolding[];
-  invested: number; marketValue: number; totalPnl: number; totalPnlPct: number;
-  risk: RiskView;
-}
-
 export interface Alert {
   id: string;
   token: string;
@@ -161,7 +130,7 @@ export const STRATEGIES: { key: string; name: string }[] = [
 
 // ---- Broker (Groww / mock): dashboard, real portfolio, stocks, watchlist ----
 
-export interface Mode { provider: "MOCK" | "GROWW" | string; trading: "PAPER" | "LIVE" | string }
+export interface Mode { provider: "MOCK" | "GROWW" | string }
 
 export interface BrokerStatus {
   provider: string;

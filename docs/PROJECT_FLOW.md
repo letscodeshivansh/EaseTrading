@@ -8,7 +8,7 @@
 > | **Last updated** | 2026-11-24 (Groww G1–G3) |
 > | **Code version** | uncommitted changes on top of `1f8d7f1` (main) |
 > | **Reviewed by** | Full line-by-line read of `apps/analysis`, `apps/api`, `apps/web`, `infra`, `render.yaml` |
-> | **Tests run?** | ✅ Java: 27/27 pass (`mvn test`). ✅ Web: `tsc` + `next build` pass. ✅ Mock mode checked end-to-end in the browser. ❌ Python tests not run (no pandas on this Mac). ✅ First real Groww run 2026-11-24: login, profile, funds, holdings, positions, stock list OK — **market data blocked on the free plan** (see §2). |
+> | **Tests run?** | ✅ Java: 28/28 pass (`mvn test`). ✅ Web: `tsc` + `next build` pass. ✅ Mock mode checked end-to-end in the browser. ❌ Python tests not run (no pandas on this Mac). ✅ First real Groww run 2026-11-24: login, profile, funds, holdings, positions, stock list OK — **market data blocked on the free plan** (see §2). |
 
 **Legend used everywhere below**
 
@@ -94,9 +94,10 @@ The one table to check first. Update it whenever anything changes.
 | 18 | Alerts | 🟡 | Stock picker uses watchlist; still no email/push; B17 |
 | 19 | Login / auth | ❌ | Still open to anyone who reaches the api (B6) — keep local only |
 | 20 | Header shows real data source + trading mode | ✅ | Part of B18 fixed |
-| 21 | Run locally — **no Docker, no DB server** | ✅ | One SQLite file (`apps/api/easetrading.db`); Docker Compose optional (api + analysis + web only) |
+| 21 | Run locally — **no Docker, no DB server** | ✅ | One SQLite file (`apps/api/easetrading.db`); Docker Compose optional (api + analysis + web only). api and web listen on **127.0.0.1 only** |
+| 21b | **Open on my phone** (Tailscale Serve, private to my devices) | ✅ | `https://b2bmlblr0254.taile29b55.ts.net` (tailnet only): `/` → web `127.0.0.1:3000`, `/api` → api `127.0.0.1:8080`. Tested: pages, api, saves, live-price WebSocket. Needs the Mac on, both apps running, Tailscale connected. Stop with `tailscale serve reset` |
 | 22 | Deploy: Render + Vercel | 🟡 | Keep `BROKER_PROVIDER=mock` until B6 is fixed. Free Render has no disk → SQLite data resets on each deploy |
-| 23 | Automated tests | 🟡 | Java 27 pass; Python not run |
+| 23 | Automated tests | 🟡 | Java 28 pass; Python not run |
 
 ---
 
@@ -579,6 +580,8 @@ When fixed, change the Status to ✅ and add the commit.
 | B22 | 🟠 | Prices | `QuoteCache` used a plain Jackson mapper that can't write `Instant`, so every tick publish failed ("Failed to publish tick") — live prices likely never reached the browser, and market orders drafted with ₹0 (see B14). | [QuoteCache.java:25](../apps/api/src/main/java/com/easetrading/api/marketdata/QuoteCache.java#L25) | ✅ Fixed (G1–G3, uncommitted) |
 | B23 | 🟡 | Prices | Redis `quote:{token}` isn't separated by data source, so demo prices (kept 24 h) showed as real after switching `BROKER_PROVIDER` from mock to groww. Cache was cleared by hand; needs a source-specific key. | [QuoteCache.java:34](../apps/api/src/main/java/com/easetrading/api/marketdata/QuoteCache.java#L34) | ✅ Fixed — prices live in memory and reset on restart; Redis removed |
 | B24 | 🟠 | Portfolio | When no price is available (e.g. Groww 403 on the free plan), LTP falls back to the average cost, so P&L shows ₹0.00 — looks real but isn't. Should say "price unavailable". | [BrokerPortfolioService.java](../apps/api/src/main/java/com/easetrading/api/portfolio/BrokerPortfolioService.java) | ✅ Fixed — `priceAvailable` / `pricedHoldings`; UI shows "Price unavailable" and "—" |
+| B25 | 🔴 | Groww login | After a failed login the api retried **every 30 s forever**. Overnight the token expired (6 AM) and the key wasn't approved, so it made ~120 attempts/hour and used up Groww's **150 logins/day** → `429 Rate limit has breached` for the whole account (new keys too). | [GrowwTokenProvider.java](../apps/api/src/main/java/com/easetrading/api/broker/groww/GrowwTokenProvider.java) | ✅ Fixed — backoff 30 s → 1 → 2 → 4 … max 30 min; ≥ 30 min after a 429 (≤ ~48 tries/day) |
+| B26 | 🔴 | Database | With SQLite's single connection, one request held the connection while waiting for the dev-user lock and another held the lock while waiting for the connection → api froze (`HikariPool … Connection is not available`). | [CurrentUserService.java](../apps/api/src/main/java/com/easetrading/api/common/CurrentUserService.java), [application.yml](../apps/api/src/main/resources/application.yml) | ✅ Fixed — dev user created once at startup (no DB on each request); SQLite WAL + 5 s busy timeout + pool of 4. Verified 50 parallel requests → all 200 in ~1 s |
 | B21 | ⚪ | Config | Config smells: (fixed) `DB_URL` pointed at the docker host `postgres` — gone with SQLite; docker compose read `.env` from `infra/` (it lives at the repo root — now pass `--env-file ../.env`); and the Maven/npm Dockerfiles turn off TLS checks ([api Dockerfile:12](../apps/api/Dockerfile#L12), [web Dockerfile:9](../apps/web/Dockerfile#L9)). | — | Open |
 
 ---
@@ -720,6 +723,9 @@ Add one row per change, newest first.
 
 | Date | Commit | Change | Sections touched |
 |---|---|---|---|
+| 2026-11-25 | uncommitted | **Fixed B25 + B26.** Groww login now backs off (it had exhausted the 150/day login limit → 429). SQLite deadlock fixed (dev user cached at startup; WAL, busy timeout, pool 4). New Groww key/secret in `.env`; login still blocked by Groww's 429 until its limit resets. | §2, §6 |
+| 2026-11-25 | uncommitted | **Phone access live via Tailscale Serve.** Mac + phone on one tailnet, MagicDNS + HTTPS on, `tailscale serve` routes `/` and `/api`. Fixed a 403 on saves/live prices through Tailscale by adding the Mac's exact ts.net origin to `CORS_ALLOWED_ORIGINS` in `.env` (other sites still get 403). | §2 |
+| 2026-11-24 | uncommitted | **Phone access prep.** api binds to `127.0.0.1` (`SERVER_ADDRESS`; Docker uses `0.0.0.0`), web `npm start` binds to `127.0.0.1`. Web app picks the api address at runtime (`NEXT_PUBLIC_API_BASE_URL` → `:3000`→`:8080` → same origin), so one build works locally, through Tailscale Serve and on Vercel. Verified: not reachable from the Wi-Fi address; localhost works. | §2 |
 | 2026-11-24 | uncommitted | **Simplified storage → SQLite.** Removed Postgres, Redis and Timescale. One SQLite file holds only app-owned data (users, watchlist, alerts, paper orders/positions, analysis history, audit log). Stock list, live prices, candles and fundamentals moved to in-memory caches; broker-credential table and AES service removed. No Docker needed to run. Verified: writes + restart persistence on SQLite, Groww mode works. B20 obsolete, B23 fixed. | §2, §3, §4, §5.1, §5.2, §5.4, §5.8, §5.10, §6, §7, §8 |
 | 2026-11-24 | uncommitted | **UI pass.** New look across the app via theme tokens (navy surfaces, indigo accent, emerald/rose only for gains/losses, Inter font, sticky glass header with phone-scrollable nav). Portfolio page redesigned (summary, allocation bar, sortable holdings + phone cards, risk meter). Fixed B24 (no fake ₹0 P&L when prices are missing) on the api, Portfolio and Dashboard. | §2, §5.9, §6 |
 | 2026-11-24 | uncommitted | **First real Groww run.** Working: login (approval mode), profile, funds, holdings, positions, 4,334-stock sync. Free plan blocks all market data (LTP, OHLC, quote, candles → 403). Logged B23, B24. No code change. | §2, §6 |

@@ -27,6 +27,9 @@ public interface BrokerAdapter {
     /** Is the broker reachable with a valid session right now? Never throws. */
     BrokerStatus status();
 
+    /** Try logging in again now (the "Reconnect" button). */
+    void reconnect();
+
     /** Account basics (client code, enabled exchanges/segments). */
     BrokerProfile profile();
 

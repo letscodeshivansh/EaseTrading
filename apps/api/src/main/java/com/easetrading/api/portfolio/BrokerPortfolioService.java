@@ -8,8 +8,6 @@ import com.easetrading.api.instrument.Instrument;
 import com.easetrading.api.instrument.InstrumentResolver;
 import com.easetrading.api.marketdata.MarketSubscription;
 import com.easetrading.api.marketdata.QuoteCache;
-import com.easetrading.api.position.PortfolioService;
-import com.easetrading.api.position.PortfolioService.RiskView;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +22,6 @@ import java.util.*;
  *                   ──► invested, current value, P&L, today's change, allocation, risk
  *
  * Read-only. Holdings are also added to the live price stream so the dashboard updates.
- * (Paper-trading positions live separately — see PortfolioService / GET /api/portfolio/paper.)
  */
 @Service
 public class BrokerPortfolioService {
@@ -59,6 +56,9 @@ public class BrokerPortfolioService {
      */
     public record Summary(int holdings, int pricedHoldings, double invested, double marketValue,
                           double totalPnl, double totalPnlPct, double dayPnl, double dayPnlPct) {}
+
+    /** Concentration risk: largest holding % and a Herfindahl-style index (1 = all in one stock). */
+    public record RiskView(int holdings, double largestPositionPct, double concentrationIndex, String assessment) {}
 
     public record PortfolioView(String source, Instant asOf, Summary summary,
                                 List<HoldingView> holdings, RiskView risk) {}
@@ -139,9 +139,18 @@ public class BrokerPortfolioService {
         Summary summary = new Summary(holdings.size(), pricedCount, r(totalInvested), r(totalMarket),
                 r(totalPnl), r(pricedInvested > 0 ? totalPnl / pricedInvested * 100 : 0),
                 r(totalDay), r(totalPrevValue > 0 ? totalDay / totalPrevValue * 100 : 0));
-        RiskView risk = PortfolioService.riskOf(holdings.stream().map(HoldingView::allocationPct).toList());
+        RiskView risk = riskOf(holdings.stream().map(HoldingView::allocationPct).toList());
 
         return new PortfolioView(broker.source(), Instant.now(), summary, holdings, risk);
+    }
+
+    static RiskView riskOf(List<Double> allocationPcts) {
+        if (allocationPcts.isEmpty()) return new RiskView(0, 0, 0, "No holdings yet.");
+        double largest = allocationPcts.stream().mapToDouble(Double::doubleValue).max().orElse(0);
+        double hhi = allocationPcts.stream().mapToDouble(a -> Math.pow(a / 100.0, 2)).sum();
+        String assessment = largest > 40 || hhi > 0.5 ? "High concentration — consider diversifying."
+                : largest > 25 || hhi > 0.3 ? "Moderate concentration." : "Well diversified.";
+        return new RiskView(allocationPcts.size(), r(largest), r(hhi), assessment);
     }
 
     /** Broker LTP, else the last streamed price, else null (= "price unavailable"). */

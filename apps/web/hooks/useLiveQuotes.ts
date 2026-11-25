@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { WS_BASE } from "@/lib/api";
+import { wsBase } from "@/lib/api";
 import type { Tick } from "@/lib/types";
 
 /**
@@ -25,7 +25,7 @@ export function useLiveQuotes(tokens: string[] = []) {
     let reconnectTimer: ReturnType<typeof setTimeout>;
 
     function connect() {
-      const ws = new WebSocket(`${WS_BASE}/api/stream`);
+      const ws = new WebSocket(`${wsBase()}/api/stream`);
       socketRef.current = ws;
 
       ws.onopen = () => {

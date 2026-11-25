@@ -23,7 +23,7 @@ import java.util.function.Function;
  *   - the required headers (Bearer token, Accept, X-API-VERSION: 1.0)
  *   - rate limiting per category
  *   - unwrapping {"status":"SUCCESS","payload":...} / {"status":"FAILURE","error":...}
- *   - one automatic re-login + retry when the token has expired (it dies daily 6 AM)
+ *   - dropping a rejected token (the next call logs in once — no retries)
  *
  * Never logs tokens, keys or request bodies.
  */
@@ -64,10 +64,9 @@ public class GrowwHttp {
         try {
             return once(method, uri, body, category, tokens.get());
         } catch (GrowwException e) {
-            if (!e.isAuthError()) throw e;
-            // Token expired or was revoked: log in again and retry exactly once.
-            tokens.invalidate();
-            return once(method, uri, body, category, tokens.get());
+            // Token rejected: drop it so the next request logs in once. No retry here.
+            if (e.isAuthError()) tokens.invalidate();
+            throw e;
         }
     }
 

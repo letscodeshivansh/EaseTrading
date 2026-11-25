@@ -4,7 +4,7 @@
 #   - easetrading-api      : Spring Boot API (free web service)
 #
 # The api's database is a single SQLite file. NOTE: Render's free web services
-# have no persistent disk, so the file (watchlist, alerts, paper trades) is reset
+# have no persistent disk, so the file (watchlist, alerts) is reset
 # on every redeploy. For permanent data, attach a Render Disk at /app/data (paid)
 # or switch the datasource to Postgres (see apps/api/pom.xml).
 #
@@ -40,13 +40,11 @@ services:
       # Keep the JVM within Render's 512MB free RAM.
       - key: JAVA_TOOL_OPTIONS
         value: -XX:MaxRAMPercentage=70
-      # Safe defaults: simulated data + paper trading.
+      # Safe default: simulated data.
       # Do NOT switch BROKER_PROVIDER to groww on this public deployment until login
       # is added (issue B6) — otherwise anyone with the URL could see your holdings.
       - key: BROKER_PROVIDER
         value: mock
-      - key: TRADING_MODE
-        value: paper
       # Auto-generated JWT signing secret.
       - key: JWT_SECRET
         generateValue: true

@@ -61,10 +61,9 @@ public class SecurityConfig {
                     "/api/fundamentals/**",
                     "/api/screener/**",
                     "/api/analysis/**",
-                    // Order/portfolio/alert endpoints resolve a dev user when no JWT is
+                    // Portfolio/alert endpoints resolve a dev user when no JWT is
                     // present (single-user dev). In production, remove these from the
                     // permit list so they require authentication.
-                    "/api/orders/**",
                     "/api/portfolio/**",
                     "/api/alerts/**",
                     // Read-only broker/dashboard/watchlist views. Same dev-user rule as

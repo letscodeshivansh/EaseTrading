@@ -43,6 +43,11 @@ public class MockBrokerAdapter implements BrokerAdapter {
     }
 
     @Override
+    public void reconnect() {
+        // Nothing to log in to.
+    }
+
+    @Override
     public BrokerProfile profile() {
         return new BrokerProfile("MOCK", "DEMO0001", true, true, List.of("CASH"));
     }

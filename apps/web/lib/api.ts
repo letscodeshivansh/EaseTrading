@@ -3,15 +3,31 @@
 
 import type {
   Candle, Instrument, Indicators, Fundamentals, ScreenResult, Verdict,
-  Order, DraftResult, PaperPortfolio, Alert,
+  Alert,
   Mode, BrokerStatus, Funds, BrokerPortfolio, Dashboard, WatchRow, StockDetail,
 } from "./types";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+/**
+ * Where the api lives, decided in the browser so ONE build works everywhere:
+ *   1. NEXT_PUBLIC_API_BASE_URL set (e.g. on Vercel)  -> use it
+ *   2. page opened on port 3000 (local dev)           -> same machine, port 8080
+ *   3. anything else (Tailscale Serve, a reverse proxy) -> same address; the proxy
+ *      routes /api to the api, so no CORS and no extra port.
+ */
+function apiBase(): string {
+  const env = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (env) return env.replace(/\/$/, "");
+  if (typeof window === "undefined") return "http://localhost:8080";
+  const { protocol, hostname, port, host } = window.location;
+  return port === "3000" ? `${protocol}//${hostname}:8080` : `${protocol}//${host}`;
+}
 
-export const WS_BASE =
-  process.env.NEXT_PUBLIC_WS_BASE_URL ?? "ws://localhost:8080";
+/** WebSocket base for live prices — follows the same rules as apiBase(). */
+export function wsBase(): string {
+  const env = process.env.NEXT_PUBLIC_WS_BASE_URL;
+  if (env) return env.replace(/\/$/, "");
+  return apiBase().replace(/^http/, "ws");
+}
 
 /** Throws an Error carrying the api's own message ({message: "..."}) when there is one. */
 async function check(res: Response, path: string): Promise<Response> {
@@ -27,12 +43,12 @@ async function check(res: Response, path: string): Promise<Response> {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await check(await fetch(`${API_BASE}${path}`, { cache: "no-store" }), path);
+  const res = await check(await fetch(`${apiBase()}${path}`, { cache: "no-store" }), path);
   return res.json() as Promise<T>;
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await check(await fetch(`${API_BASE}${path}`, {
+  const res = await check(await fetch(`${apiBase()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -71,35 +87,10 @@ export function analyze(token: string, strategy: string) {
   return postJson<Verdict>(`/api/analysis/${token}`, { strategy });
 }
 
-// ---- Prompt 4: orders, portfolio, alerts ----
+// ---- Alerts ----
 
 async function del(path: string): Promise<Response> {
-  return check(await fetch(`${API_BASE}${path}`, { method: "DELETE" }), path);
-}
-
-/** Step 1: create a DRAFT order and get back the risk report (nothing is executed). */
-export function draftOrder(body: {
-  token: string; side: "BUY" | "SELL"; type: "MARKET" | "LIMIT"; qty: number; price: number;
-}) {
-  return postJson<DraftResult>(`/api/orders`, body);
-}
-
-/** Step 2: the explicit human confirmation that actually executes the order. */
-export function confirmOrder(id: string) {
-  return postJson<Order>(`/api/orders/${id}/confirm`, {});
-}
-
-export function cancelOrder(id: string) {
-  return postJson<Order>(`/api/orders/${id}/cancel`, {});
-}
-
-export function listOrders() {
-  return getJson<Order[]>(`/api/orders`);
-}
-
-/** Holdings built from paper trades placed in this app. */
-export function getPaperPortfolio() {
-  return getJson<PaperPortfolio>(`/api/portfolio/paper`);
+  return check(await fetch(`${apiBase()}${path}`, { method: "DELETE" }), path);
 }
 
 export function listAlerts() {
@@ -125,6 +116,11 @@ export function getMode() {
 /** Everything the home screen needs in one call. */
 export function getDashboard() {
   return getJson<Dashboard>(`/api/dashboard`);
+}
+
+/** "Reconnect": log in to the broker again now (e.g. after approving the key on Groww). */
+export function reconnectBroker() {
+  return postJson<BrokerStatus>(`/api/broker/reconnect`, {});
 }
 
 export function getBrokerStatus() {

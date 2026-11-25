@@ -19,15 +19,11 @@ public class AppProperties {
     private final Broker broker = new Broker();
     private final Groww groww = new Groww();
     private final Analysis analysis = new Analysis();
-    private final Trading trading = new Trading();
-    private final Risk risk = new Risk();
 
     public Security getSecurity() { return security; }
     public Broker getBroker() { return broker; }
     public Groww getGroww() { return groww; }
     public Analysis getAnalysis() { return analysis; }
-    public Trading getTrading() { return trading; }
-    public Risk getRisk() { return risk; }
 
     /** JWT signing settings (app login). */
     public static class Security {
@@ -84,27 +80,4 @@ public class AppProperties {
         public void setServiceUrl(String v) { this.serviceUrl = v; }
     }
 
-    /** How orders are executed: "paper" (simulated, safe) or "live" (real money — blocked until phase G5). */
-    public static class Trading {
-        private String mode = "paper";
-        public String getMode() { return mode; }
-        public void setMode(String v) { this.mode = v; }
-        public boolean isLive() { return "live".equalsIgnoreCase(mode); }
-    }
-
-    /** Pre-trade risk limits. Every order is checked against these before submission. */
-    public static class Risk {
-        private double maxOrderValue = 100_000;   // max rupees per single order
-        private double maxPositionPct = 25;        // max % of portfolio in one stock
-        private double dailyLossLimit = 25_000;    // block new buys after this day loss
-        private double priceBandPct = 10;          // limit price must be within +/-X% of LTP
-        public double getMaxOrderValue() { return maxOrderValue; }
-        public void setMaxOrderValue(double v) { this.maxOrderValue = v; }
-        public double getMaxPositionPct() { return maxPositionPct; }
-        public void setMaxPositionPct(double v) { this.maxPositionPct = v; }
-        public double getDailyLossLimit() { return dailyLossLimit; }
-        public void setDailyLossLimit(double v) { this.dailyLossLimit = v; }
-        public double getPriceBandPct() { return priceBandPct; }
-        public void setPriceBandPct(double v) { this.priceBandPct = v; }
-    }
 }

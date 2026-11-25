@@ -23,6 +23,8 @@ WORKDIR /app
 # The SQLite database file lives here (mount a volume to keep it between runs).
 RUN mkdir -p /app/data
 ENV DB_PATH=/app/data/easetrading.db
+# Inside a container the api must listen on all interfaces (compose maps it to 127.0.0.1 on the host).
+ENV SERVER_ADDRESS=0.0.0.0
 COPY --from=build /app/target/api-1.0.0.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

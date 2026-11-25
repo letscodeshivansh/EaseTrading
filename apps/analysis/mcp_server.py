@@ -10,10 +10,9 @@ Tools:
   get_fundamentals(symbol)          -> P/E, ROE, EPS, growth, FII/DII
   get_indicators(symbol)            -> RSI/MACD/Bollinger/Fib/S-R
   run_screener(...)                 -> matching symbols
-  get_portfolio()                   -> holdings (Prompt 4)
+  get_portfolio()                   -> holdings
 
-SAFETY: there is NO order-placement tool here. Trading actions (Prompt 4) go through
-the Spring Boot backend with explicit human confirmation; the AI can never trade.
+SAFETY: there are NO order tools here — every tool only reads data.
 
 Run as a standalone process; the Agent SDK connects to it. Fundamentals/indicators
 are computed locally; quote/candles/portfolio come from the Spring Boot API.
@@ -83,22 +82,6 @@ if mcp:
         with httpx.Client(timeout=10) as client:
             return client.get(f"{API_BASE}/api/portfolio").json()
 
-    @mcp.tool()
-    def prepare_order(token: str, side: str, type: str, qty: int, price: float = 0) -> dict:
-        """Prepare a DRAFT order and return it WITH its risk report.
-
-        IMPORTANT SAFETY BOUNDARY: this tool only DRAFTS an order — it never executes
-        one. The draft still requires explicit human confirmation in the app (a
-        separate, non-AI action) before anything reaches the broker. Claude cannot
-        confirm or place orders.
-        """
-        body = {"token": token, "side": side, "type": type, "qty": qty, "price": price}
-        with httpx.Client(timeout=10) as client:
-            draft = client.post(f"{API_BASE}/api/orders", json=body).json()
-        return {
-            "note": "DRAFT only — requires human confirmation in the app. Not executed.",
-            "draft": draft,
-        }
 
 
 if __name__ == "__main__":

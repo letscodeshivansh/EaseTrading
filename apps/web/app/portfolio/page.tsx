@@ -6,20 +6,15 @@ import Stat from "@/components/Stat";
 import AllocationBar from "@/components/portfolio/AllocationBar";
 import HoldingsList from "@/components/portfolio/HoldingsList";
 import { useLiveQuotes } from "@/hooks/useLiveQuotes";
-import { getPaperPortfolio, getPortfolio } from "@/lib/api";
+import { getPortfolio } from "@/lib/api";
 import { inr, pct, signedInr, tone } from "@/lib/format";
-import type { BrokerPortfolio, HoldingView, PaperPortfolio, RiskView } from "@/lib/types";
-
-type Tab = "real" | "paper";
+import type { BrokerPortfolio, HoldingView, RiskView } from "@/lib/types";
 
 /**
- * Portfolio:
- *   My Portfolio : real holdings from the broker (Groww), or demo holdings in mock mode
- *   Paper trades : holdings built from paper orders placed in this app
+ * Portfolio: real holdings from the broker (Groww), or demo holdings in mock mode.
  * Live prices stream in over the WebSocket; totals refresh every 15 s.
  */
 export default function PortfolioPage() {
-  const [tab, setTab] = useState<Tab>("real");
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -29,17 +24,8 @@ export default function PortfolioPage() {
             <h1 className="text-2xl font-semibold tracking-tight">Portfolio</h1>
             <p className="text-sm text-slate-400">Your holdings, returns and how your money is spread.</p>
           </div>
-          <div className="inline-flex rounded-xl border border-slate-800 bg-slate-900/70 p-1">
-            {(["real", "paper"] as const).map((t) => (
-              <button key={t} onClick={() => setTab(t)}
-                className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
-                  tab === t ? "bg-brand text-white shadow-lg shadow-brand/20" : "text-slate-400 hover:text-slate-100"}`}>
-                {t === "real" ? "My Portfolio" : "Paper trades"}
-              </button>
-            ))}
-          </div>
         </div>
-        {tab === "real" ? <RealPortfolio /> : <PaperTab />}
+        <RealPortfolio />
       </main>
     </div>
   );
@@ -196,62 +182,12 @@ function MiniFigure({ label, value }: { label: string; value: string }) {
   );
 }
 
-// ---------------------------------------------------------------- paper tab
-
-function PaperTab() {
-  const [data, setData] = useState<PaperPortfolio | null>(null);
-  useEffect(() => { getPaperPortfolio().then(setData).catch(() => setData(null)); }, []);
-
-  return (
-    <div className="space-y-5">
-      <Notice tone="info">Holdings from simulated orders placed on the Orders page. No real money is involved.</Notice>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Invested" value={inr(data?.invested)} />
-        <Stat label="Market value" value={inr(data?.marketValue)} />
-        <Stat label="Total P&L" value={signedInr(data?.totalPnl)} valueClass={tone(data?.totalPnl)} />
-        <Stat label="P&L %" value={pct(data?.totalPnlPct)} valueClass={tone(data?.totalPnl)} />
-      </div>
-      <section className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-[11px] uppercase tracking-wider text-slate-500">
-              <tr className="border-b border-slate-800">
-                <th className="px-4 py-2.5">Symbol</th><th className="px-4 py-2.5 text-right">Qty</th>
-                <th className="px-4 py-2.5 text-right">Avg</th><th className="px-4 py-2.5 text-right">LTP</th>
-                <th className="px-4 py-2.5 text-right">Value</th><th className="px-4 py-2.5 text-right">P&L</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data?.holdings.map((h) => (
-                <tr key={h.token} className="border-b border-slate-800/60 last:border-0 hover:bg-slate-800/30">
-                  <td className="px-4 py-3 font-medium">{h.symbol}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{h.qty}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{inr(h.avgPrice)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{inr(h.ltp)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{inr(h.marketValue)}</td>
-                  <td className={`px-4 py-3 text-right tabular-nums ${tone(h.pnl)}`}>{signedInr(h.pnl)} <span className="text-xs">({pct(h.pnlPct)})</span></td>
-                </tr>
-              ))}
-              {(!data || data.holdings.length === 0) && (
-                <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">
-                  No paper holdings yet — place a paper order on the Orders page.
-                </td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------- bits
 
-function Notice({ tone: t, children }: { tone: "warn" | "danger" | "info"; children: React.ReactNode }) {
+function Notice({ tone: t, children }: { tone: "warn" | "danger"; children: React.ReactNode }) {
   const styles = {
     warn: "border-amber-500/30 bg-amber-500/10 text-amber-200",
     danger: "border-down/30 bg-down/10 text-down",
-    info: "border-slate-800 bg-slate-900/60 text-slate-300",
   }[t];
   return <div className={`rounded-xl border px-4 py-3 text-sm ${styles}`}>{children}</div>;
 }

@@ -7,7 +7,7 @@ export interface StockChoice { token: string; symbol: string }
 
 /**
  * Stocks a form can pick from = my watchlist, plus the stock given in the URL as
- * ?token=… (e.g. "Trade" from a stock page), which is pre-selected.
+ * ?token=…, which is pre-selected.
  */
 export function useStockChoices() {
   const [choices, setChoices] = useState<StockChoice[]>([]);

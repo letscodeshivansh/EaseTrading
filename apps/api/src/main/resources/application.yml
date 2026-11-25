@@ -7,14 +7,17 @@ spring:
     name: easetrading-api
 
   # The whole database is ONE SQLite file — nothing to install or run.
-  # It holds only what the app itself owns: watchlist, alerts, paper orders/positions,
+  # It holds only what the app itself owns: watchlist, alerts,
   # analysis history, audit log, users. Everything the broker owns is fetched live.
   datasource:
-    url: jdbc:sqlite:${DB_PATH:easetrading.db}
+    # WAL = readers never block the writer; busy_timeout = a writer waits up to 5 s
+    # for another write instead of failing with "database is locked".
+    url: jdbc:sqlite:${DB_PATH:easetrading.db}?journal_mode=WAL&busy_timeout=5000
     driver-class-name: org.sqlite.JDBC
     hikari:
-      # SQLite allows one writer at a time; a single connection avoids "database is locked".
-      maximum-pool-size: 1
+      # A few connections so one slow request can't freeze the rest (a single
+      # connection caused a deadlock, B26). SQLite still serialises the writes.
+      maximum-pool-size: 4
 
   jpa:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
@@ -27,6 +30,9 @@ server:
   # Cloud hosts (Render, Railway, etc.) inject the port to listen on via $PORT.
   # Locally it defaults to 8080.
   port: ${PORT:8080}
+  # Listen on this Mac only. Other devices reach the app through Tailscale Serve
+  # (private to your own devices), never directly over Wi-Fi. Docker sets 0.0.0.0.
+  address: ${SERVER_ADDRESS:127.0.0.1}
 
 # ---- Application-specific settings ----
 easetrading:
@@ -50,14 +56,6 @@ easetrading:
     totp-secret: ${GROWW_TOTP_SECRET:}
   analysis:
     service-url: ${ANALYSIS_SERVICE_URL:http://localhost:8000}
-  trading:
-    # "paper" = simulated fills (safe default). "live" = real orders (blocked until phase G5).
-    mode: ${TRADING_MODE:paper}
-  risk:
-    max-order-value: ${RISK_MAX_ORDER_VALUE:100000}
-    max-position-pct: ${RISK_MAX_POSITION_PCT:25}
-    daily-loss-limit: ${RISK_DAILY_LOSS_LIMIT:25000}
-    price-band-pct: ${RISK_PRICE_BAND_PCT:10}
 
 logging:
   level:

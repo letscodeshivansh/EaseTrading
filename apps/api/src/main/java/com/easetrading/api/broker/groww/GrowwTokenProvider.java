@@ -25,22 +25,22 @@ import java.util.Map;
  *              Groww needs the key approved once a day on its API-keys page.
  *   totp     : API key + TOTP secret. We generate the 6-digit code ourselves.
  *
- * Login attempts are throttled (Groww allows only 150 token calls per day), and
- * the last error is kept so the dashboard can say exactly what's wrong.
+ * Simple rule — no automatic retries: log in once when a token is needed. If that
+ * fails (e.g. the key isn't approved today), keep the error, show it on the
+ * dashboard, and don't try again until you press Reconnect (reconnect()).
+ * This also keeps us far below Groww's 150 logins/day limit.
  */
 @Component
 @ConditionalOnProperty(name = "easetrading.broker.provider", havingValue = "groww")
 public class GrowwTokenProvider {
 
     static final ZoneId IST = ZoneId.of("Asia/Kolkata");
-    private static final Duration MIN_RETRY_GAP = Duration.ofSeconds(30);
 
     private final AppProperties.Groww cfg;
     private final RestClient http;
 
     private String token;
     private Instant expiresAt;
-    private Instant lastAttemptAt;
     private GrowwException lastError;
 
     public GrowwTokenProvider(AppProperties props) {
@@ -51,31 +51,31 @@ public class GrowwTokenProvider {
                 .build();
     }
 
-    /** A valid access token, logging in if needed. Throws GrowwException if login fails. */
+    /** A valid token. Logs in once if needed; after a failed login, throws that error until reconnect(). */
     public synchronized String get() {
-        if (token != null && expiresAt != null && Instant.now().isBefore(expiresAt)) {
-            return token;
-        }
-        // Don't hammer the token endpoint after a failure (150 calls/day limit).
-        if (lastError != null && lastAttemptAt != null
-                && Duration.between(lastAttemptAt, Instant.now()).compareTo(MIN_RETRY_GAP) < 0) {
-            throw lastError;
-        }
-        lastAttemptAt = Instant.now();
+        if (token != null && Instant.now().isBefore(expiresAt)) return token;
+        if (lastError != null) throw lastError;
         try {
             login();
-            lastError = null;
             return token;
         } catch (GrowwException e) {
             lastError = e;
+            System.err.println("[Groww] " + e.getMessage());
             throw e;
         }
     }
 
-    /** Forget the current token (e.g. Groww rejected it); the next get() logs in again. */
+    /** Groww rejected the token: drop it. The next get() logs in once. */
     public synchronized void invalidate() {
         token = null;
         expiresAt = null;
+    }
+
+    /** "Reconnect" button: forget the last error and log in now. */
+    public synchronized void reconnect() {
+        invalidate();
+        lastError = null;
+        get();
     }
 
     public synchronized Instant expiresAt() { return expiresAt; }
@@ -125,7 +125,7 @@ public class GrowwTokenProvider {
                             GrowwHttp.unwrap(res.getStatusCode().value(), res.getBody().readAllBytes()), true);
         } catch (GrowwException e) {
             throw new GrowwException(e.getCode(), "login failed: " + e.getMessage()
-                    + " — if using approval/totp mode, approve the API key for today on Groww's API-keys page");
+                    + " — approve the API key for today on Groww's API-keys page, then press Reconnect");
         } catch (Exception e) {
             throw new GrowwException("NETWORK", "login failed: " + e.getMessage());
         }
@@ -139,6 +139,7 @@ public class GrowwTokenProvider {
     }
 
     // ------------------------------------------------------------------ helpers (static for tests)
+
 
     /** SHA-256 hex of (secret + timestamp), as Groww's "approval" flow requires. */
     static String checksum(String secret, String timestamp) {
