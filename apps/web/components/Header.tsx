@@ -34,7 +34,7 @@ export default function Header() {
     <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
         <Link href="/dashboard" className="flex shrink-0 items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand to-violet-500 text-sm font-black text-white shadow-lg shadow-brand/30">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-sm font-black text-black">
             E
           </span>
           <span className="hidden text-lg font-semibold tracking-tight sm:inline">EaseTrading</span>

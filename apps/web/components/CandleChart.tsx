@@ -51,16 +51,16 @@ export default function CandleChart({
     if (!containerRef.current) return;
 
     const chart = createChart(containerRef.current, {
-      layout: { background: { type: ColorType.Solid, color: "#020617" }, textColor: "#cbd5e1" },
-      grid: { vertLines: { color: "#1e293b" }, horzLines: { color: "#1e293b" } },
-      timeScale: { borderColor: "#334155" },
-      rightPriceScale: { borderColor: "#334155" },
+      layout: { background: { type: ColorType.Solid, color: "#000000" }, textColor: "#d4d4d4" },
+      grid: { vertLines: { color: "#161616" }, horzLines: { color: "#161616" } },
+      timeScale: { borderColor: "#2e2e2e" },
+      rightPriceScale: { borderColor: "#2e2e2e" },
       autoSize: true, // responsive
     });
 
     const series = chart.addCandlestickSeries({
-      upColor: "#16a34a", downColor: "#dc2626", borderVisible: false,
-      wickUpColor: "#16a34a", wickDownColor: "#dc2626",
+      upColor: "#22C55E", downColor: "#EF4444", borderVisible: false,
+      wickUpColor: "#22C55E", wickDownColor: "#EF4444",
     });
 
     chartRef.current = chart;
@@ -103,7 +103,7 @@ export default function CandleChart({
       for (const [ratio, price] of Object.entries(indicators.fibonacci.levels)) {
         const line = series.createPriceLine({
           price,
-          color: "#d97706", // amber
+          color: "#737373", // grey
           lineWidth: 1,
           lineStyle: 2, // dashed
           axisLabelVisible: true,
@@ -137,8 +137,8 @@ export default function CandleChart({
 
     if (!showSMA || closesRef.current.length === 0) return;
 
-    sma50Ref.current = chart.addLineSeries({ color: "#38bdf8", lineWidth: 1 });  // blue
-    sma200Ref.current = chart.addLineSeries({ color: "#a78bfa", lineWidth: 1 }); // purple
+    sma50Ref.current = chart.addLineSeries({ color: "#F59E0B", lineWidth: 1 });  // amber
+    sma200Ref.current = chart.addLineSeries({ color: "#E5E5E5", lineWidth: 1 }); // white
     sma50Ref.current.setData(movingAverage(closesRef.current, 50));
     sma200Ref.current.setData(movingAverage(closesRef.current, 200));
   }

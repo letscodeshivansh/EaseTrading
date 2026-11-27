@@ -5,7 +5,7 @@ import type {
   Candle, Instrument, Indicators, Fundamentals, ScreenResult, Verdict,
   Alert,
   Mode, BrokerStatus, BrokerAccount, Funds, BrokerPortfolio, Dashboard, WatchRow, StockDetail,
-  MarketOverview, FnoUnderlying, OptionChain,
+  MarketOverview, FnoUnderlying, OptionChain, StockNews,
 } from "./types";
 
 /**
@@ -234,4 +234,8 @@ export function getFnoExpiries(underlying: string) {
 
 export function getOptionChain(underlying: string, expiry: string) {
   return getJson<OptionChain>(`/api/fno/chain?underlying=${encodeURIComponent(underlying)}&expiry=${expiry}`);
+}
+
+export function getStockNews(token: string) {
+  return getJson<StockNews>(`/api/news/${encodeURIComponent(token)}`);
 }

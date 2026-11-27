@@ -272,3 +272,6 @@ export interface OptionChain {
   reading: string;
   strikes: OptionStrike[];
 }
+
+export interface NewsItem { title: string; source: string; url: string; publishedAt: string | null }
+export interface StockNews { query: string; items: NewsItem[] }

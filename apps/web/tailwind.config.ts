@@ -3,10 +3,12 @@ import type { Config } from "tailwindcss";
 /**
  * EaseTrading design tokens.
  *
- *  - slate   : re-tuned to a deep navy so every existing bg-/border-/text-slate-* class
- *              picks up the new look (950 = page, 900 = card, 800 = line, 700 = raised line).
- *  - brand   : indigo accent — used ONLY for navigation, actions and highlights.
- *  - up/down : emerald / rose — used ONLY for profit/loss and price direction, so
+ *  - slate   : re-tuned to pure neutral greys on black, so every existing
+ *              bg-/border-/text-slate-* class picks up the look
+ *              (950 = page, 900 = card, 800 = line, 700 = raised line).
+ *  - brand   : white accent — buttons are white with black text; used ONLY for
+ *              navigation, actions and highlights.
+ *  - up/down : green / red — used ONLY for profit/loss and price direction, so
  *              green and red always mean money, never decoration.
  */
 const config: Config = {
@@ -19,18 +21,25 @@ const config: Config = {
     extend: {
       colors: {
         slate: {
-          700: "#2E3852",
-          800: "#1F283C",
-          900: "#121826",
-          950: "#0A0E17",
+          50: "#FAFAFA",
+          100: "#F5F5F5",
+          200: "#E5E5E5",
+          300: "#D4D4D4",
+          400: "#A3A3A3",
+          500: "#737373",
+          600: "#525252",
+          700: "#2E2E2E",
+          800: "#1F1F1F",
+          900: "#111111",
+          950: "#000000",
         },
         brand: {
-          DEFAULT: "#6366F1", // buttons (white text passes contrast)
-          dark: "#4F46E5",    // button hover
-          light: "#A5B4FC",   // accent text on dark surfaces
+          DEFAULT: "#FFFFFF", // buttons (black text)
+          dark: "#D4D4D4",    // button hover
+          light: "#FFFFFF",   // accent text on dark surfaces
         },
-        up: "#34D399",   // gains
-        down: "#FB7185", // losses
+        up: "#22C55E",   // gains
+        down: "#EF4444", // losses
       },
       fontFamily: {
         sans: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],

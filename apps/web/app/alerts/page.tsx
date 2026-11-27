@@ -52,7 +52,7 @@ export default function AlertsPage() {
             </div>
             <input type="number" value={threshold} onChange={(e) => setThreshold(Number(e.target.value))}
               className="w-full rounded bg-slate-800 px-2 py-1 text-sm" />
-            <button onClick={add} className="w-full rounded bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-dark">
+            <button onClick={add} className="w-full rounded bg-brand px-3 py-2 text-sm font-semibold text-black hover:bg-brand-dark">
               Create alert
             </button>
           </div>

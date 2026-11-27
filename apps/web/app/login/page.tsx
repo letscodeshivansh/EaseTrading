@@ -72,7 +72,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="card w-full max-w-sm p-6">
         <div className="mb-6 flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-brand to-violet-500 font-black text-white">E</span>
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-white font-black text-black">E</span>
           <span className="text-xl font-semibold tracking-tight">EaseTrading</span>
         </div>
 
@@ -80,7 +80,7 @@ export default function LoginPage() {
           {(["login", "register"] as const).map((m) => (
             <button key={m} type="button" onClick={() => { setMode(m); setError(null); }}
               className={`flex-1 rounded-lg py-1.5 text-sm font-medium transition ${
-                mode === m ? "bg-brand text-white" : "text-slate-400 hover:text-slate-100"}`}>
+                mode === m ? "bg-brand text-black" : "text-slate-400 hover:text-slate-100"}`}>
               {m === "login" ? "Log in" : "Create account"}
             </button>
           ))}
@@ -101,7 +101,7 @@ export default function LoginPage() {
           </label>
           {error && <p className="rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-xs text-down">{error}</p>}
           <button type="submit" disabled={busy}
-            className="w-full rounded-lg bg-brand py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
+            className="w-full rounded-lg bg-brand py-2 text-sm font-semibold text-black hover:bg-brand-dark disabled:opacity-50">
             {busy ? "Please wait…" : mode === "login" ? "Log in" : "Create account"}
           </button>
         </form>

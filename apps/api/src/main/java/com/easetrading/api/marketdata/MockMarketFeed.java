@@ -41,9 +41,11 @@ public class MockMarketFeed {
             // Starts from the same base price the mock candle history ends at.
             double prev = lastPrice.getOrDefault(token, MockPrices.base(token));
 
-            // Random walk: nudge price by up to +/-0.15%, keep it positive.
-            double driftPct = ThreadLocalRandom.current().nextDouble(-0.0015, 0.0015);
-            double next = Math.max(1.0, prev * (1 + driftPct));
+            // Small random nudge (+/-0.05%) plus a gentle pull back towards the base price,
+            // so a demo day stays within roughly +/-1-2% instead of drifting off for hours.
+            double base = MockPrices.base(token);
+            double driftPct = ThreadLocalRandom.current().nextDouble(-0.0005, 0.0005);
+            double next = Math.max(1.0, prev * (1 + driftPct) + (base - prev) * 0.0005);
             lastPrice.put(token, next);
 
             quoteCache.publish(new Tick(token, round2(next), Instant.now()));

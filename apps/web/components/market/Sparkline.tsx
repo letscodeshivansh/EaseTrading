@@ -11,7 +11,7 @@ export default function Sparkline({ values, height = 36, label }: { values: numb
   const pts = values.map((v, i) => [(i / (values.length - 1)) * w, height - 3 - ((v - min) / span) * (height - 6)]);
   const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
   const up = values[values.length - 1] >= values[0];
-  const color = up ? "#34D399" : "#FB7185";
+  const color = up ? "#22C55E" : "#EF4444";
   const gid = `spark-${up ? "up" : "down"}`;
   return (
     <svg viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" className="w-full" style={{ height }}

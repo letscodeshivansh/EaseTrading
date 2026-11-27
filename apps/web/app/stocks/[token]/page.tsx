@@ -7,6 +7,7 @@ import CandleChart from "@/components/CandleChart";
 import Header from "@/components/Header";
 import IndicatorPanel from "@/components/IndicatorPanel";
 import Stat from "@/components/Stat";
+import StockNews from "@/components/StockNews";
 import { useLiveQuotes } from "@/hooks/useLiveQuotes";
 import { addToWatchlist, analyze, getIndicators, getStock, getWatchlist, removeFromWatchlist } from "@/lib/api";
 import { compact, inr, pct, signedInr, tone } from "@/lib/format";
@@ -14,7 +15,7 @@ import { STRATEGIES, type Indicators, type StockDetail, type Verdict } from "@/l
 
 /**
  * One stock: live price + day change, key stats (OHLC, volume, 52-week range,
- * market cap), chart with SMA/Fibonacci overlays, indicators and the AI analysis.
+ * market cap), chart with SMA/Fibonacci overlays, indicators, the AI analysis and latest news.
  */
 export default function StockPage() {
   const { token } = useParams<{ token: string }>();
@@ -127,13 +128,16 @@ export default function StockPage() {
                 {STRATEGIES.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
               </select>
               <button onClick={runAnalysis} disabled={analyzing}
-                className="rounded bg-brand px-3 py-1 text-xs font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
+                className="rounded bg-brand px-3 py-1 text-xs font-semibold text-black hover:bg-brand-dark disabled:opacity-50">
                 {analyzing ? "Analyzing…" : "Analyze"}
               </button>
             </div>
           </div>
           <AnalysisCard verdict={verdict} loading={analyzing} />
         </div>
+
+        {/* Latest news */}
+        {token && <StockNews token={token} />}
       </main>
     </div>
   );

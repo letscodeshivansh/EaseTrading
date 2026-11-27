@@ -75,7 +75,7 @@ export default function ScreenerPage() {
           <button
             onClick={run}
             disabled={loading}
-            className="mt-3 w-full rounded bg-brand px-3 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
+            className="mt-3 w-full rounded bg-brand px-3 py-2 text-sm font-semibold text-black hover:bg-brand-dark disabled:opacity-50"
           >
             {loading ? "Screening…" : "Run screen"}
           </button>

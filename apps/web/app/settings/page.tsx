@@ -104,7 +104,7 @@ export default function SettingsPage() {
               <div className="flex flex-wrap gap-2">
                 {!status?.connected && (
                   <button onClick={reconnect} disabled={busy}
-                    className="rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
+                    className="rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-black hover:bg-brand-dark disabled:opacity-50">
                     {busy ? "Connecting…" : "Reconnect"}
                   </button>
                 )}
@@ -143,7 +143,7 @@ export default function SettingsPage() {
               {error && <p className="rounded-lg border border-down/30 bg-down/10 px-3 py-2 text-xs text-down">{error}</p>}
               <div className="flex gap-2">
                 <button type="submit" disabled={busy}
-                  className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-50">
+                  className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-black hover:bg-brand-dark disabled:opacity-50">
                   {busy ? "Saving…" : "Save & connect"}
                 </button>
                 {editing && (

@@ -9,11 +9,11 @@ import { inr } from "@/lib/format";
  *
  * Colours: the validated categorical order for dark surfaces (blue, orange, aqua,
  * yellow, magenta) — checked for colour-blind separation and contrast on the card
- * surface (#121826). Colour follows the holding's rank in THIS list only, and every
+ * surface (#111111). Colour follows the holding's rank in THIS list only, and every
  * segment is also named in the legend, so identity never relies on colour alone.
  */
 const SERIES = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181"];
-const OTHER = "#5b6478";
+const OTHER = "#5f5f5f";
 
 export interface Slice { label: string; value: number; pct: number }
 

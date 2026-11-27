@@ -82,7 +82,7 @@ export default function LiveMarketPage() {
             <ul className="mt-2 list-disc space-y-1 pl-5 leading-relaxed">
               <li>Each <b>candle</b> is one day. <span className="text-up">Green</span> = closed higher than it opened; <span className="text-down">red</span> = closed lower.</li>
               <li>The thin lines above and below a candle (wicks) show that day&apos;s highest and lowest point.</li>
-              <li>The <span className="text-sky-400">blue</span> line is the 50-day average and the <span className="text-violet-400">purple</span> one the 200-day average. Price above both usually means an uptrend.</li>
+              <li>The <span className="text-amber-400">amber</span> line is the 50-day average and the <span className="text-slate-200">white</span> one the 200-day average. Price above both usually means an uptrend.</li>
               <li>The last candle moves live while the market is open.</li>
             </ul>
           </details>
