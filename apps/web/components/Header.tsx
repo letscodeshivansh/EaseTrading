@@ -7,7 +7,7 @@ import { getMe, getMode, logout, type Me } from "@/lib/api";
 import type { Mode } from "@/lib/types";
 
 const NAV = [
-  { href: "/", label: "Dashboard" },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/portfolio", label: "Portfolio" },
   { href: "/stocks", label: "Stocks" },
   { href: "/screener", label: "Screener" },
@@ -33,7 +33,7 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-        <Link href="/" className="flex shrink-0 items-center gap-2">
+        <Link href="/dashboard" className="flex shrink-0 items-center gap-2">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand to-violet-500 text-sm font-black text-white shadow-lg shadow-brand/30">
             E
           </span>
@@ -42,7 +42,7 @@ export default function Header() {
 
         <nav className="-mx-1 flex flex-1 gap-1 overflow-x-auto px-1 text-sm [scrollbar-width:none]">
           {NAV.map((n) => {
-            const active = n.href === "/" ? path === "/" : path?.startsWith(n.href);
+            const active = path?.startsWith(n.href);
             return (
               <Link key={n.href} href={n.href}
                 className={`whitespace-nowrap rounded-lg px-3 py-1.5 transition ${

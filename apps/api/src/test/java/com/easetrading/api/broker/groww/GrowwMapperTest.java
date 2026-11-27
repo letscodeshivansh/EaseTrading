@@ -133,4 +133,23 @@ class GrowwMapperTest {
         assertTrue(p.nseEnabled());
         assertEquals(List.of("CASH", "FNO"), p.activeSegments());
     }
+
+    @Test
+    void optionChainAndExpiries() {
+        OptionChainData c = GrowwMapper.optionChain(payload("""
+            {"status":"SUCCESS","payload":{"underlying_ltp":24510.5,"strikes":{
+              "24600":{"CE":{"trading_symbol":"NIFTY25D0224600CE","ltp":80.5,"open_interest":1000,"volume":50,
+                             "greeks":{"delta":0.42,"gamma":0.001,"theta":-12.5,"vega":9.1,"rho":1.2,"iv":13.4}},
+                       "PE":{"trading_symbol":"NIFTY25D0224600PE","ltp":160,"open_interest":700,"volume":40}},
+              "24500":{"CE":{"trading_symbol":"NIFTY25D0224500CE","ltp":130,"open_interest":900,"volume":60},
+                       "PE":{"trading_symbol":"NIFTY25D0224500PE","ltp":110,"open_interest":1200,"volume":70}}}}}"""));
+        assertEquals(24510.5, c.spot());
+        assertEquals(24500, c.strikes().get(0).strike());   // sorted ascending
+        assertEquals(0.42, c.strikes().get(1).call().greeks().delta());
+        assertEquals(1200, c.strikes().get(0).put().openInterest());
+
+        assertEquals(List.of(java.time.LocalDate.of(2026, 12, 1), java.time.LocalDate.of(2026, 12, 8)),
+                GrowwMapper.expiries(payload("{\"status\":\"SUCCESS\",\"payload\":{\"expiries\":[\"2026-12-01\",\"2026-12-08\"]}}")));
+        assertEquals(1, GrowwMapper.expiries(payload("{\"status\":\"SUCCESS\",\"payload\":[\"2026-12-01\"]}")).size());
+    }
 }

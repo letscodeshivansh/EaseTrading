@@ -5,6 +5,7 @@ import com.easetrading.api.instrument.Instrument;
 import com.easetrading.api.marketdata.CandleDto;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -35,4 +36,10 @@ public interface BrokerAdapter {
 
     /** Historical candles. interval: 1m | 5m | 15m | 1h | 1d | 1w. */
     List<CandleDto> candles(Instrument instrument, String interval, Instant from, Instant to);
+
+    /** Upcoming option expiry dates for an index (NIFTY, BANKNIFTY…), soonest first. */
+    List<LocalDate> expiries(Instrument underlying);
+
+    /** The option chain (calls + puts per strike, OI, Greeks) for one expiry. */
+    OptionChainData optionChain(Instrument underlying, LocalDate expiry);
 }

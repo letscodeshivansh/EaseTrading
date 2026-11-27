@@ -20,6 +20,10 @@ public final class MockPrices {
             case "1660" -> 430;    // ITC
             case "3456" -> 760;    // TATAMOTORS
             case "11483" -> 3600;  // LT
+            case "NIFTY" -> 24500;
+            case "BANKNIFTY" -> 52000;
+            case "FINNIFTY" -> 23800;
+            case "SENSEX" -> 80800;
             default -> 500 + Math.floorMod(token.hashCode(), 2500);
         };
     }

@@ -40,4 +40,18 @@ public final class BrokerModels {
                               Long volume, Double week52High, Double week52Low,
                               Double marketCap, Double upperCircuit, Double lowerCircuit,
                               Instant lastTradeTime) {}
+
+    // ---- F&O ----
+
+    /** Option Greeks. theta = price change per day, vega = per 1% IV, iv in %. */
+    public record OptionGreeks(Double delta, Double gamma, Double theta, Double vega, Double iv) {}
+
+    /** One side (Call or Put) at one strike. */
+    public record OptionLeg(String tradingSymbol, double ltp, long openInterest, long volume, OptionGreeks greeks) {}
+
+    /** One row of the option chain. call or put may be null if not listed. */
+    public record OptionStrike(double strike, OptionLeg call, OptionLeg put) {}
+
+    /** The chain for one underlying and expiry, strikes in ascending order. */
+    public record OptionChainData(double spot, List<OptionStrike> strikes) {}
 }

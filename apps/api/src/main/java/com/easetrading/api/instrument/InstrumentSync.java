@@ -52,17 +52,17 @@ public class InstrumentSync implements ApplicationRunner {
 
     public synchronized void sync() {
         if (!props.getBroker().isGroww()) {
-            store.replaceAll(defaults());
+            store.replaceAll(withIndices(defaults()));
             return;
         }
         try {
             List<Instrument> fresh = download();
             if (fresh.isEmpty()) throw new IllegalStateException("instrument file had no NSE equities");
-            store.replaceAll(fresh);
+            store.replaceAll(withIndices(fresh));
             System.out.printf("[Instruments] Loaded %d NSE equities from Groww.%n", fresh.size());
         } catch (Exception e) {
             System.err.println("[Instruments] Groww instrument download failed: " + e.getMessage());
-            if (store.count() == 0) store.replaceAll(defaults());
+            if (store.count() == 0) store.replaceAll(withIndices(defaults()));
         }
     }
 
@@ -76,6 +76,13 @@ public class InstrumentSync implements ApplicationRunner {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(res.body(), StandardCharsets.UTF_8))) {
             return InstrumentCsv.parseNseEquities(reader);
         }
+    }
+
+    /** Stocks + the market indices (NIFTY, BANKNIFTY, FINNIFTY, SENSEX). */
+    private static List<Instrument> withIndices(List<Instrument> stocks) {
+        List<Instrument> all = new java.util.ArrayList<>(stocks);
+        all.addAll(Indices.asInstruments());
+        return all;
     }
 
     /** A small, real set of NSE stocks (tokens are the NSE exchange tokens). */

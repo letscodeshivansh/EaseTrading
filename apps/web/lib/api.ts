@@ -5,6 +5,7 @@ import type {
   Candle, Instrument, Indicators, Fundamentals, ScreenResult, Verdict,
   Alert,
   Mode, BrokerStatus, BrokerAccount, Funds, BrokerPortfolio, Dashboard, WatchRow, StockDetail,
+  MarketOverview, FnoUnderlying, OptionChain,
 } from "./types";
 
 /**
@@ -214,4 +215,23 @@ export async function linkBroker(authMode: "approval" | "totp", apiKey: string, 
 export async function unlinkBroker() {
   const res = await del(`/api/broker/account`);
   return res.json() as Promise<BrokerAccount>;
+}
+
+// ---- Market + F&O ----
+
+/** Indices, Nifty 50 gainers/losers, market breadth. */
+export function getMarketOverview() {
+  return getJson<MarketOverview>(`/api/market/overview`);
+}
+
+export function getFnoUnderlyings() {
+  return getJson<FnoUnderlying[]>(`/api/fno/underlyings`);
+}
+
+export function getFnoExpiries(underlying: string) {
+  return getJson<string[]>(`/api/fno/expiries?underlying=${encodeURIComponent(underlying)}`);
+}
+
+export function getOptionChain(underlying: string, expiry: string) {
+  return getJson<OptionChain>(`/api/fno/chain?underlying=${encodeURIComponent(underlying)}&expiry=${expiry}`);
 }

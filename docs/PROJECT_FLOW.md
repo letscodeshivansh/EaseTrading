@@ -5,10 +5,10 @@
 >
 > | | |
 > |---|---|
-> | **Last updated** | 2026-11-24 (Groww G1–G3) |
+> | **Last updated** | 2026-11-28 (Dashboard redesign: Overview / Live market / F&O) |
 > | **Code version** | uncommitted changes on top of `1f8d7f1` (main) |
 > | **Reviewed by** | Full line-by-line read of `apps/analysis`, `apps/api`, `apps/web`, `infra`, `render.yaml` |
-> | **Tests run?** | ✅ Java: 28/28 pass (`mvn test`). ✅ Web: `tsc` + `next build` pass. ✅ Mock mode checked end-to-end in the browser. ❌ Python tests not run (no pandas on this Mac). ✅ First real Groww run 2026-11-24: login, profile, funds, holdings, positions, stock list OK — **market data blocked on the free plan** (see §2). |
+> | **Tests run?** | ✅ Java: 37/37 pass (`mvn test`). ✅ Web: `tsc` + `next build` pass. ✅ Mock mode checked end-to-end in the browser. ❌ Python tests not run (no pandas on this Mac). ✅ First real Groww run 2026-11-24: login, profile, funds, holdings, positions, stock list OK — **market data blocked on the free plan** (see §2). |
 
 **Legend used everywhere below**
 
@@ -74,7 +74,9 @@ The one table to check first. Update it whenever anything changes.
 
 | # | Feature | Status | Notes |
 |---|---|---|---|
-| 1 | **Personal dashboard** (status, funds, P&L, today's movers, watchlist) | ✅ | New home page `/`. Mock checked; Groww untested |
+| 1 | **Dashboard** — 3 tabs: **Overview** (greeting, market status, indices with sparklines, portfolio, funds, Nifty 50 movers, watchlist), **Live market** (pick an index → live chart, breadth, gainers/losers), **F&O** (option chain) | ✅ | `/dashboard`, `/dashboard/live`, `/dashboard/fno` (`/` redirects). ⓘ tips explain every term for new traders. Mock checked in the browser; Groww needs the paid plan for prices |
+| 1b | **Indices** NIFTY 50, BANK NIFTY, FIN NIFTY, SENSEX | ✅ | Added to the stock list as type `IDX`, so quotes, candles, live feed and `/stocks/NIFTY` all work. Streamed from startup with the Nifty 50 basket |
+| 1c | **F&O option chain** — expiries, chain with OI/volume/price/IV/Delta, PCR, max pain, support/resistance, OI chart | 🟡 | Demo: Black-Scholes prices + realistic OI. Groww: `/v1/historical/expiries` + `/v1/option-chain` wired but **untested** (needs the paid plan). No order placing from F&O |
 | 2 | **My Portfolio** — each user's own Groww holdings (P2), live P&L, today's change, allocation, risk | 🟡 | **Redesigned** (summary at top, allocation bar, sortable holdings, phone cards, risk meter). Real holdings load ✅; prices need market data, which the **free Groww plan blocks (403)** — shown honestly as "Price unavailable" |
 | 3 | **Stocks** — search the full NSE list, stock page with quote + chart | ✅ | `/stocks`, `/stocks/[token]` |
 | 4 | **Watchlist** (per user, add/remove, live prices) | ✅ | Replaces the hard-coded 3 stocks (B19) |
@@ -97,7 +99,7 @@ The one table to check first. Update it whenever anything changes.
 | 21 | Run locally — **no Docker, no DB server** | ✅ | One SQLite file (`apps/api/easetrading.db`); Docker Compose optional (api + analysis + web only). api and web listen on **127.0.0.1 only** |
 | 21b | **Open on my phone** (Tailscale Serve, private to my devices) | ✅ | `https://b2bmlblr0254.taile29b55.ts.net` (tailnet only): `/` → web `127.0.0.1:3000`, `/api` → api `127.0.0.1:8080`. Tested: pages, api, saves, live-price WebSocket. Needs the Mac on, both apps running, Tailscale connected. Stop with `tailscale serve reset` |
 | 22 | Deploy: Render + Vercel | 🟡 | Keep `BROKER_PROVIDER=mock` until B6 is fixed. Free Render has no disk → SQLite data resets on each deploy |
-| 23 | Automated tests | 🟡 | Java 28 pass; Python not run |
+| 23 | Automated tests | 🟡 | Java 37 pass; Python not run |
 
 ---
 
@@ -482,12 +484,24 @@ flowchart LR
 
 ⏳ **To verify once market data is available:** is Groww's OHLC `close` the *previous* day's close (needed for "today's P&L")? If not, switch to the quote's `day_change`.
 
-### 5.9b Dashboard, Stocks and Watchlist (new)
+### 5.9b Dashboard, Stocks and Watchlist
+
+The dashboard is one folder with three tabs (shared layout: header + tab bar):
 
 ```mermaid
 flowchart TD
-    D["/ Dashboard"] --> DA["GET /api/dashboard<br/>mode · broker status · funds · portfolio summary · top 3 gainers/losers<br/>(each part fails independently)"]
+    R["/"] -->|redirect| D["/dashboard · Overview"]
+    D --> DA["GET /api/dashboard<br/>mode · broker status · funds · portfolio summary<br/>(each part fails independently)"]
+    D --> MO["GET /api/market/overview (cached 5 s)<br/>indices + 30-day sparkline · Nifty 50 top 5 gainers/losers · breadth"]
     D --> WL["Watchlist panel: GET/POST/DELETE /api/watchlist"]
+    L["/dashboard/live · Live market"] --> MO
+    L --> CC["Candle chart for the chosen index<br/>GET /api/candles/NIFTY… + live ticks"]
+    F["/dashboard/fno · F&O"] --> FU["GET /api/fno/underlyings"]
+    F --> FE["GET /api/fno/expiries?underlying= (cached 1 h)"]
+    F --> FC["GET /api/fno/chain?underlying=&expiry= (cached 10 s, page refreshes every 10 s)<br/>spot · strikes · PCR · max pain · support · resistance · reading"]
+    FC --> B{"BrokerAdapter"}
+    B -->|mock| MK["MockOptions: Black-Scholes + OI bell curve"]
+    B -->|groww| GW["/v1/historical/expiries · /v1/option-chain"]
     ST["/stocks"] --> SE["GET /api/instruments/search?q="]
     SE --> SP["/stocks/[token]"]
     SP --> Q["GET /api/instruments/{token}<br/>stock + live quote (day change, 52W, volume, mkt cap)"]
@@ -500,7 +514,10 @@ flowchart TD
 | Dashboard endpoint | [DashboardController.java](../apps/api/src/main/java/com/easetrading/api/dashboard/DashboardController.java) |
 | Watchlist (new user gets RELIANCE, TCS, HDFCBANK) | [WatchlistService.java](../apps/api/src/main/java/com/easetrading/api/watchlist/WatchlistService.java) |
 | Stock detail + search | [InstrumentController.java](../apps/api/src/main/java/com/easetrading/api/instrument/InstrumentController.java) |
-| Pages | [page.tsx](../apps/web/app/page.tsx), [stocks/page.tsx](../apps/web/app/stocks/page.tsx), [stocks/[token]/page.tsx](../apps/web/app/stocks/[token]/page.tsx) |
+| Market overview | [MarketService.java](../apps/api/src/main/java/com/easetrading/api/market/MarketService.java), [Indices.java](../apps/api/src/main/java/com/easetrading/api/instrument/Indices.java) |
+| F&O | [FnoService.java](../apps/api/src/main/java/com/easetrading/api/fno/FnoService.java) (PCR, max pain, reading), [MockOptions.java](../apps/api/src/main/java/com/easetrading/api/broker/mock/MockOptions.java) |
+| Dashboard pages | [layout.tsx](../apps/web/app/dashboard/layout.tsx), [Overview](../apps/web/app/dashboard/page.tsx), [Live](../apps/web/app/dashboard/live/page.tsx), [F&O](../apps/web/app/dashboard/fno/page.tsx); components in `components/market`, `components/fno`, `components/dashboard` |
+| Other pages | [stocks/page.tsx](../apps/web/app/stocks/page.tsx), [stocks/[token]/page.tsx](../apps/web/app/stocks/[token]/page.tsx) |
 
 ### 5.10 Alerts
 
@@ -737,6 +754,8 @@ B7 (startup order), B9 (refresh candles), B14 (₹0 market orders), B10, B11, B8
 | GET/POST/DELETE | `/api/alerts[/{id}]` | 🔓 | Alerts |
 | GET | `/api/broker/status`, `/profile`, `/funds` | 🔓 | Broker account (read-only) |
 | GET | `/api/dashboard`, `/api/dashboard/mode` | 🔓 | Home screen / header badge |
+| GET | `/api/market/overview` | | Indices, Nifty 50 movers, breadth |
+| GET | `/api/fno/underlyings`, `/api/fno/expiries?underlying=`, `/api/fno/chain?underlying=&expiry=` | | Option chain + summary |
 | GET | `/api/instruments/{token}` | 🔓 | Stock + live quote |
 | GET/POST/DELETE | `/api/watchlist[/{token}]` | 🔓 | My watchlist |
 | GET | `/api/portfolio/positions`, `/api/portfolio/paper` | 🔓 | Broker positions / paper holdings |
@@ -752,6 +771,7 @@ Add one row per change, newest first.
 
 | Date | Commit | Change | Sections touched |
 |---|---|---|---|
+| 2026-11-28 | uncommitted | **Dashboard redesign — 3 tabs in `app/dashboard/`.** Overview (greeting, market status, index cards with sparklines, portfolio hero, funds, Nifty 50 movers, explore links, watchlist), Live market (selectable index → live candle chart, breadth bar, gainers/losers), F&O (index + expiry pickers, PCR/max pain/support/resistance/ATM/days cards, OI-by-strike chart, option chain with ITM shading, live ATM, Greeks toggle, beginner explainer, SEBI risk note). ⓘ tips on every term. api: indices as `IDX` instruments, `/api/market/overview`, `/api/fno/*`, `BrokerAdapter.expiries/optionChain` (mock Black-Scholes; Groww wired, untested). `/` → `/dashboard`. Tests: api 37. Web `tsc` + `next build` pass; checked in the browser on mock. | §2, §5.9b, §8.3 |
 | 2026-11-26 | uncommitted | **P2 — each user links their own Groww account.** New `broker_account` table (AES-GCM encrypted key + secret, `CREDENTIAL_AES_KEY`), Settings page (link / replace / remove / reconnect), per-user Groww session for holdings/funds/positions; market data stays shared via `.env`. Fixes: Groww 401 replies now readable (Java HttpClient instead of HttpURLConnection — wrong keys used to show "I/O error"); SQLite `transaction_mode=IMMEDIATE` (a concurrent write failed with SQLITE_BUSY_SNAPSHOT). Spring's unused generated-password user switched off. Tests: api 30, P2 end-to-end 9/9, 168/168 parallel writes. | §2, §5.11 |
 | 2026-11-26 | uncommitted | **Simplified + login (P1 + P4).** Groww login: one try, then a **Reconnect** button (no automatic retries). Users table and tables restored as they were. **Paper trading removed** for now (orders, risk checks, paper portfolio, Orders page, MCP `prepare_order`). **Login added:** email + password and Google sign-in (`GOOGLE_CLIENT_ID`), httpOnly cookie, every endpoint needs login (B6 fixed), per-user data, 5-strike lock. Dev user removed. Tests: api 25, end-to-end 12/12. | §2, §5.11, §6 |
 | 2026-11-25 | uncommitted | **Fixed B25 + B26.** Groww login now backs off (it had exhausted the 150/day login limit → 429). SQLite deadlock fixed (dev user cached at startup; WAL, busy timeout, pool 4). New Groww key/secret in `.env`; login still blocked by Groww's 429 until its limit resets. | §2, §6 |

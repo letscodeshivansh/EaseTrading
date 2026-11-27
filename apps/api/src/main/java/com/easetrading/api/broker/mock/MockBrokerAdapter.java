@@ -2,6 +2,7 @@ package com.easetrading.api.broker.mock;
 
 import com.easetrading.api.broker.BrokerAdapter;
 import com.easetrading.api.broker.BrokerModels.*;
+import com.easetrading.api.instrument.Indices;
 import com.easetrading.api.instrument.Instrument;
 import com.easetrading.api.marketdata.CandleDto;
 import com.easetrading.api.marketdata.QuoteCache;
@@ -107,6 +108,21 @@ public class MockBrokerAdapter implements BrokerAdapter {
                     round(open), round(high), round(low), round(close), vol));
         }
         return out;
+    }
+
+    @Override
+    public List<LocalDate> expiries(Instrument underlying) {
+        return Indices.get(underlying.getToken())
+                .map(i -> MockOptions.expiries(i, LocalDate.now(IST)))
+                .orElse(List.of());
+    }
+
+    @Override
+    public OptionChainData optionChain(Instrument underlying, LocalDate expiry) {
+        var idx = Indices.get(underlying.getToken())
+                .orElseThrow(() -> new IllegalArgumentException("Options are available for indices only"));
+        double spot = ltp(List.of(underlying)).get(underlying.getToken());
+        return MockOptions.chain(idx, spot, expiry, LocalDate.now(IST));
     }
 
     private static double round(double v) { return Math.round(v * 100.0) / 100.0; }

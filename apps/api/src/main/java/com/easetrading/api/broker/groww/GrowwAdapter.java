@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -120,6 +121,28 @@ public class GrowwAdapter implements BrokerAdapter {
         Map<Instant, CandleDto> byTs = new TreeMap<>();
         out.forEach(c -> byTs.put(c.ts(), c));
         return new ArrayList<>(byTs.values());
+    }
+
+    @Override
+    public List<LocalDate> expiries(Instrument underlying) {
+        LocalDate today = LocalDate.now(IST);
+        TreeSet<LocalDate> all = new TreeSet<>();
+        for (LocalDate month : List.of(today, today.plusMonths(1))) {
+            all.addAll(GrowwMapper.expiries(http.get(market, "/v1/historical/expiries", Map.of(
+                    "exchange", underlying.getExchange(),
+                    "underlying_symbol", underlying.getTradingSymbol(),
+                    "year", month.getYear(),
+                    "month", month.getMonthValue()), Category.OTHER)));
+        }
+        return all.tailSet(today, true).stream().limit(6).toList();
+    }
+
+    @Override
+    public OptionChainData optionChain(Instrument underlying, LocalDate expiry) {
+        String path = "/v1/option-chain/exchange/" + underlying.getExchange()
+                + "/underlying/" + underlying.getTradingSymbol();
+        return GrowwMapper.optionChain(http.get(market, path,
+                Map.of("expiry_date", expiry.toString()), Category.LIVE_DATA));
     }
 
     // ------------------------------------------------------------------ helpers

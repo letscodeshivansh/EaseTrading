@@ -166,4 +166,37 @@ public final class GrowwMapper {
         if (v.isNumber()) return v.asDouble();
         try { return Double.parseDouble(v.asText()); } catch (NumberFormatException e) { return null; }
     }
+
+    // ---- F&O ----
+
+    /** GET /v1/historical/expiries — the docs show both a plain array and {"expiries":[...]}; accept either. */
+    public static List<LocalDate> expiries(JsonNode p) {
+        JsonNode list = p.isArray() ? p : p.path("expiries");
+        List<LocalDate> out = new ArrayList<>();
+        for (JsonNode d : list) {
+            try { out.add(LocalDate.parse(d.asText().substring(0, 10))); } catch (Exception ignored) { }
+        }
+        return out;
+    }
+
+    /** GET /v1/option-chain/... — {underlying_ltp, strikes: {"24500": {"CE": {...}, "PE": {...}}}} */
+    public static OptionChainData optionChain(JsonNode p) {
+        List<OptionStrike> rows = new ArrayList<>();
+        p.path("strikes").fields().forEachRemaining(e -> {
+            double strike;
+            try { strike = Double.parseDouble(e.getKey()); } catch (NumberFormatException ex) { return; }
+            rows.add(new OptionStrike(strike, optionLeg(e.getValue().get("CE")), optionLeg(e.getValue().get("PE"))));
+        });
+        rows.sort(Comparator.comparingDouble(OptionStrike::strike));
+        return new OptionChainData(p.path("underlying_ltp").asDouble(0), rows);
+    }
+
+    private static OptionLeg optionLeg(JsonNode leg) {
+        if (leg == null || leg.isNull() || leg.isMissingNode()) return null;
+        JsonNode g = leg.path("greeks");
+        return new OptionLeg(leg.path("trading_symbol").asText(null), leg.path("ltp").asDouble(0),
+                leg.path("open_interest").asLong(0), leg.path("volume").asLong(0),
+                g.isMissingNode() ? null : new OptionGreeks(num(g, "delta"), num(g, "gamma"),
+                        num(g, "theta"), num(g, "vega"), num(g, "iv")));
+    }
 }

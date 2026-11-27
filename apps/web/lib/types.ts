@@ -238,3 +238,37 @@ export interface BrokerAccount {
   keyHint: string | null;
   updatedAt: string | null;
 }
+
+// ---- Market overview (dashboard) ----
+
+export interface IndexCard {
+  token: string; symbol: string; name: string;
+  ltp: number | null; prevClose: number | null; change: number | null; changePct: number | null;
+  /** Last ~30 daily closes for the trend line. */
+  spark: number[];
+}
+export interface Mover { token: string; symbol: string; name: string; ltp: number; changePct: number }
+export interface MarketOverview {
+  marketOpen: boolean;
+  asOf: string;
+  indices: IndexCard[];
+  gainers: Mover[];
+  losers: Mover[];
+  breadth: { advances: number; declines: number; unchanged: number };
+  basketSize: number;
+  message: string | null;
+}
+
+// ---- F&O (index options) ----
+
+export interface FnoUnderlying { token: string; symbol: string; name: string; exchange: string; lotSize: number; strikeStep: number }
+export interface OptionGreeks { delta: number | null; gamma: number | null; theta: number | null; vega: number | null; iv: number | null }
+export interface OptionLeg { tradingSymbol: string | null; ltp: number; openInterest: number; volume: number; greeks: OptionGreeks | null }
+export interface OptionStrike { strike: number; call: OptionLeg | null; put: OptionLeg | null }
+export interface OptionChain {
+  underlying: string; name: string; lotSize: number; expiry: string; daysToExpiry: number;
+  spot: number; atmStrike: number; pcr: number | null; maxPain: number | null;
+  totalCallOi: number; totalPutOi: number; support: number | null; resistance: number | null;
+  reading: string;
+  strikes: OptionStrike[];
+}
